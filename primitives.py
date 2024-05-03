@@ -3,11 +3,9 @@ from typing import *
 from math import sqrt, acos, degrees, tan, radians
 import random as r
 
+from .math import *
+
 # Here is geometry primitives: Point, Line, Ray, Segment, Vector and Angle classes
-
-class Primitive:
-	...
-
 
 def line_by_function(func: str, name: str = 'Line'):
 	return Line(Point(1.0, func(1)), Point(2.0, func(2)), name=name)
@@ -21,15 +19,38 @@ def line_by_angle(pos1, angle: int, name: str = 'Line'):
 	return line_by_function( lambda x: k * x + m )
 
 
-class Point(Primitive):
-	def __init__(self, x: int, y: int, name: str = 'Point'):
-		self.x = x
-		self.y = y
+class Primitive:
+	...
+
+
+class PointMeta(type):
+	def __getitem__(cls, pos):
+		if isinstance(pos, (tuple, list)):
+			return cls(*pos)
+		else:
+			return cls(pos)
+class Point(Primitive, metaclass=PointMeta):
+	def __init__(self, *args, name: str = 'Point'):
+		if len(args) == 0:
+			self.x = 0
+			self.y = 0
+		elif len(args) == 2 and all([ isinstance(num, (int, float)) for num in args ]):
+			self.x = float(args[0])
+			self.y = float(args[1])
+		elif isinstance(args[0], (list, tuple)):
+			if len(args[0]) == 2 and all([ isinstance(num, (int, float)) for num in args[0] ]):
+				self.x = float(args[0][0])
+				self.y = float(args[0][1])
+			else:
+				raise ValueError(f"Invalid initialization arguments for 'Point'. Expected either two numbers representing coordinates (x, y), or a list/tuple of two numbers, but received {args}")
+		else:
+			raise ValueError(f"Invalid initialization arguments for 'Point'. Expected either two numbers representing coordinates (x, y), or a list/tuple of two numbers, but received {args}")
+
 		self.name = name
 
 	def height_to(self, object: Primitive):
 		k, m = -1/object.k, self.y - (-1/object.k * self.x)
-		return line_by_function( lambda x: k * x + m )
+		return line_by_function( lambda x: float(k * x + m) )
 
 	@staticmethod
 	def random(pos1, pos2):
@@ -38,7 +59,7 @@ class Point(Primitive):
 
 	@property
 	def pos(self):
-		return [self.x,self.y]
+		return [float(self.x), float(self.y)]
 
 	def __add__(self, object):
 		if isinstance(object, int):
@@ -104,12 +125,20 @@ class Point(Primitive):
 		else:
 			raise ValueError(f"Unsupported operand type(s) for **: 'Point' and '{type(object).__name__}'")
 
+	def __neg__(self):
+		return Point(-self.x, -self.y)
+	def __pos__(self):
+		return self
+
 	def __getitem__(self, i):
 		return self.pos[i]
 	def __list__(self):
 		return self.pos
+	def __tuple__(self):
+		return self.pos
+
 	def __str__(self):
-		return f'{self.name}[{self.x}; {self.y}]'
+		return f'{self.name}[{self.x}, {self.y}]'
 	def __repr__(self):
 		return f'Point({self.x}, {self.y}, name="{self.name}")'
 
@@ -148,33 +177,37 @@ class Line(Primitive):
 			object = Point(*object)
 
 		if isinstance(object, Point):
-			if self.direction == 'normal':
+			if self.k:
 				return [object] if self.k * object.x + self.m == object.y else []
 			elif self.direction == 'vertical':
-				return self.pos1.x == object.x
-			else:
-				return self.pos1.y == object.y
+				return [object] if self.pos1.x == object.x else []
+			elif self.direction == 'horizontal':
+				return [object] if self.pos1.y == object.y else []
 
-		elif isinstance(object, (Ray, Vector)):
+		elif isinstance(object, (Ray, Vector, Segment, Line)):
 			if self.k != object.k:
-				if object.direction in ['up','down']:
-					x, y = object.pos1.x, self(self.pos1.x)
-				elif object.direction in ['left','right']:
+				if object.direction in ['up','down','vertical']:
+					x, y = object.pos1.x, self(object.pos1.x)
+				elif object.direction in ['left','right','horizontal']:
 					x, y = self.x_from_y(object.pos1.y), object.pos1.y
 
-				elif self.direction == 'vertical':
+				elif self.direction in ['up','down','vertical']:
 					x, y = self.pos1.x, object(self.pos1.x)
-				elif self.direction == 'horizontal':
+				elif self.direction in ['left','right','horizontal']:
 					x, y = object.x_from_y(self.pos1.y), self.pos1.y
 
 				else:
 					x = (object.m - self.m) / (self.k - object.k)
 					y = self(x)
 
-				return [Point(x, y)] if Point(x, y) in self and Point(x, y) in object else []
+				if not None in [x, y]:
+					x, y = float(x), float(y)
+					return [Point(x, y)] if Point(x, y) in self and Point(x, y) in object else []
+				else:
+					return []
 
-			elif self.direction == object.direction:
-				if (self.direction == 'horizontal' and self.pos1.y == object.pos1.y) or (self.direction == 'vertical' and self.pos1.x == object.pos1.x):
+			elif object.direction in ['up','down','vertical'] and self.direction in ['up','down','vertical'] or object.direction in ['right','left','horizontal'] and self.direction in ['right','left','horizontal']:
+				if (self.direction in ['left','right','horizontal'] and self.pos1.y == object.pos1.y) or (self.direction in ['up','down','vertical'] and self.pos1.x == object.pos1.x):
 					if self.pos1 in object or self.pos2 in object:
 						positions = [self.pos1, object.pos1, object.pos2]
 						res = min([ Segment(positions[i], positions[i-1]) for i in range(4) ], key=lambda x: x.length)
@@ -183,92 +216,45 @@ class Line(Primitive):
 						else:
 							return [res]
 
-			elif object.direction in ['up','down'] and self.direction == 'horizontal':
+			elif self.direction in ['right','left','horizontal'] and object.direction in ['up','down','vertical']:
 				return [Point(object.pos1.x, self.pos1.y)] if Point(object.pos1.x, self.pos1.y) in self and Point(object.pos1.x, self.pos1.y) in object else []
-			elif object.direction in ['right','left'] and self.direction == 'vertical':
+			elif self.direction in ['up','down','vertical'] and object.direction in ['right','left','horizontal']:
 				return [Point(self.pos1.x, object.pos1.y)] if Point(self.pos1.x, object.pos1.y) in self and Point(self.pos1.x, object.pos1.y) in object else []
 
-			return []
-
-		elif isinstance(object, Segment):
-			if self.k != object.k:
-				if object.direction == 'vertical':
-					x, y = object.pos1.x, self(self.pos1.x)
-				elif object.direction == 'horizontal':
-					x, y = self.x_from_y(object.pos1.y), object.pos1.y
-
-				elif self.direction == 'vertical':
-					x, y = self.pos1.x, object(self.pos1.x)
-				elif self.direction == 'horizontal':
-					x, y = object.x_from_y(self.pos1.y), self.pos1.y
-
-				else:
-					x = (object.m - self.m) / (self.k - object.k)
-					y = self(x)
-				
-				return [Point(x, y)] if Point(x, y) in self and Point(x, y) in object else []
-
-			elif self.direction == object.direction:
-				if (self.direction == 'horizontal' and self.pos1.y == object.pos1.y) or (self.direction == 'vertical' and self.pos1.x == object.pos1.x):
-					if self.pos1 in object or self.pos2 in object:
-						positions = [self.pos1, self.pos2, object.pos1, object.pos2]
-						res = min([ Segment(positions[i], positions[i-1]) for i in range(4) ], key=lambda x: x.length)
-						if res.direction == 'point':
-							return [res.pos1]
-						else:
-							return [res]
-
-			elif self.direction == 'vertical' and object.direction == 'horizontal':
-				return [Point(self.pos1.x, object.pos1.y)] if Point(self.pos1.x, object.pos1.y) in self and Point(self.pos1.x, object.pos1.y) in object else []
-			elif self.direction == 'horizontal' and object.direction == 'vertical':
-				return [Point(object.pos1.x, self.pos1.y)] if Point(object.pos1.x, self.pos1.y) in self and Point(object.pos1.x, self.pos1.y) in object else []
-
-			return []
-
-		elif isinstance(object, Line):
-			if self.k != object.k:
-				if object.direction == 'vertical':
-					x, y = object.pos1.x, self(self.pos1.x)
-				elif object.direction == 'horizontal':
-					x, y = self.x_from_y(object.pos1.y), object.pos1.y
-
-				elif self.direction == 'vertical':
-					x, y = self.pos1.x, object(self.pos1.x)
-				elif self.direction == 'horizontal':
-					x, y = object.x_from_y(self.pos1.y), self.pos1.y
-
-				else:
-					x = (object.m - self.m) / (self.k - object.k)
-					y = self(x)
-
-				return [Point(x, y)] if Point(x, y) in self and Point(x, y) in object else []
-
-			elif self.direction == object.direction:
-				if (self.direction == 'horizontal' and self.pos1.y == object.pos1.y) or (self.direction == 'vertical' and self.pos1.x == object.pos1.x):
-					if self.pos1 in object or self.pos2 in object:
-						return object
-
-			elif self.direction == 'vertical' and object.direction == 'horizontal':
-				return [Point(self.pos1.x, object.pos1.y)] if Point(self.pos1.x, object.pos1.y) in self and Point(self.pos1.x, object.pos1.y) in object else []
-			elif self.direction == 'horizontal' and object.direction == 'vertical':
-				return [Point(object.pos1.x, self.pos1.y)] if Point(object.pos1.x, self.pos1.y) in self and Point(object.pos1.x, self.pos1.y) in object else []
+			elif self.direction == 'point':
+				return object.intersects(self.pos1)
+			elif object.direction == 'point':
+				return self.intersects(object.pos1)
 
 			return []
 
 		elif hasattr(object, 'intersects') and not isinstance(object, Primitive):
 			return object.intersects(self)
 
-	def y_from_x(self, x: float, return_none: bool = False) -> float:
-		# y = kx + m; returns (x) from y
-		return self.k * x + self.m if self.intersects([x, self.k * x + self.m]) or not return_none else None
-	def x_from_y(self, y: float, return_none: bool = False) -> float:
-		# y = kx + m; x = (y-m)/k; returns (y) from x
-		if self.direction == 'normal':
-			return (y - self.m) / self.k if self.intersects([(y - self.m) / self.k, y]) or not return_none else None
-		elif self.direction == 'vertical':
-			return self
 		else:
+			raise ValueError(f"Invalid argument type for 'object'. Expected types are Union[Primitive, Point, list, tuple], but received {type(object)}.")
+
+	def y_from_x(self, x: float, return_none: bool = False) -> float:
+		# y = kx + m; returns (y) from x
+		if self.direction in ['right', 'left', 'horizontal']:
+			return self.pos1.y if x == self.pos1.x or not return_none else None
+		elif self.direction in ['up', 'down', 'vertical']:
+			return self.pos1.y if x == self.pos1.x or not return_none else None
+		elif self.direction == 'point':
 			return self.pos1.y
+		else:
+			return self.k * x + self.m if self.intersects([x, self.k * x + self.m]) or not return_none else None
+
+	def x_from_y(self, y: float, return_none: bool = False) -> float:
+		# y = kx + m; x = (y-m)/k; returns (x) from y
+		if self.direction in ['right', 'left', 'horizontal']:
+			return self.pos1.x if y == self.pos1.y or not return_none else None
+		elif self.direction in ['up', 'down', 'vertical']:
+			return self.pos1.x if y == self.pos1.y or not return_none else None
+		elif self.direction == 'point':
+			return self.pos1.x
+		else:
+			return (y - self.m) / self.k if self.intersects([(y - self.m) / self.k, y]) or not return_none else None
 
 	@property
 	def angle(self):
@@ -300,33 +286,35 @@ class Line(Primitive):
 		else:
 			return f'y = { self.k if self.k != 1 else "" }x{ (f" + {self.m}" if self.m > 0 else f" - {-1*self.m}") if self.m else "" }'
 
+	def __contains__(self, object):
+		return self.intersects(object)
+
 	def __add__(self, i):
 		if isinstance(i, Point):
 			new_pos1 = Point(self.pos1.x + i.x, self.pos1.y + i.y)
 			new_pos2 = Point(self.pos2.x + i.x, self.pos2.y + i.y)
-			return Line(new_pos1, new_pos2, name=self.name)
+			return self.__class__(new_pos1, new_pos2, name=self.name)
 		elif isinstance(i, (list, tuple)):
 			new_pos1 = Point(self.pos1.x + i[0], self.pos1.y + i[1])
 			new_pos2 = Point(self.pos2.x + i[0], self.pos2.y + i[1])
-			return Line(new_pos1, new_pos2, name=self.name)
+			return self.__class__(new_pos1, new_pos2, name=self.name)
 	def __sub__(self, i):
-		if isinstance(i, i):
+		if isinstance(i, Point):
 			new_pos1 = Point(self.pos1.x - i.x, self.pos1.y - i.y)
 			new_pos2 = Point(self.pos2.x - i.x, self.pos2.y - i.y)
-			return Line(new_pos1, new_pos2, name=self.name)
+			return self.__class__(new_pos1, new_pos2, name=self.name)
 		elif isinstance(i, (list, tuple)):
 			new_pos1 = Point(self.pos1.x - i[0], self.pos1.y - i[1])
 			new_pos2 = Point(self.pos2.x - i[0], self.pos2.y - i[1])
-			return Line(new_pos1, new_pos2, name=self.name)
+			return self.__class__(new_pos1, new_pos2, name=self.name)
 
-	def __contains__(self, object):
-		return self.intersects(object)
 	def __call__(self, x: int, return_none: bool = False) -> float:
 		return self.y_from_x(x, return_none=return_none)
+
 	def __str__(self):
 		return f'{self.name}[({self.pos1} -> {self.pos2}), {self.as_geometry}]'
 	def __repr__(self):
-		return f'Line({self.pos1}, {self.pos2}, name="{self.name}")'
+		return f'{self.__class__.__name__}({self.pos1}, {self.pos2}, name="{self.name}")'
 
 class Segment(Line):
 	def __init__(self, pos1: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Segment'):
@@ -337,69 +325,16 @@ class Segment(Line):
 			object = Point(*object)
 
 		if isinstance(object, Point):
-			at_line = round(float(object.y), 10) == round(float(self.k * object.x + self.m), 10)
-			in_rect = min(self.pos1.x, self.pos2.x) <= object.x <= max(self.pos1.x, self.pos2.x) and min(self.pos1.y, self.pos2.y) <= object.y <= max(self.pos1.y, self.pos2.y)
-			return [object] if at_line and in_rect else []
-
-		elif isinstance(object, (Ray, Vector)):
-			if self.k != object.k:
-				if object.direction in ['up','down']:
-					x, y = object.pos1.x, self(self.pos1.x)
-				elif object.direction in ['left','right']:
-					x, y = self.x_from_y(object.pos1.y), object.pos1.y
-
-				elif self.direction == 'vertical':
-					x, y = self.pos1.x, object(self.pos1.x)
-				elif self.direction == 'horizontal':
-					x, y = object.x_from_y(self.pos1.y), self.pos1.y
-
-				else:
-					x = (object.m - self.m) / (self.k - object.k)
-					y = self(x)
-
-				return [Point(x, y)] if Point(x, y) in self and Point(x, y) in object else []
-
-			elif object.direction in ['up','down'] and self.direction == 'horizontal':
-				return [Point(object.pos1.x, self.pos1.y)] if Point(object.pos1.x, self.pos1.y) in self and Point(object.pos1.x, self.pos1.y) in object else []
-			elif object.direction in ['right','left'] and self.direction == 'vertical':
-				return [Point(self.pos1.x, object.pos1.y)] if Point(self.pos1.x, object.pos1.y) in self and Point(self.pos1.x, object.pos1.y) in object else []
-
-			return []
-
-		elif isinstance(object, (Segment, Line)):
-			if self.k != object.k:
-				if object.direction == 'vertical':
-					x, y = object.pos1.x, self(object.pos1.x)
-				elif object.direction == 'horizontal':
-					x, y = self.x_from_y(object.pos1.y), object.pos1.y
-
-				elif self.direction == 'vertical':
-					x, y = self.pos1.x, object(self.pos1.x)
-				elif self.direction == 'horizontal':
-					x, y = object.x_from_y(self.pos1.y), self.pos1.y
-
-				else:
-					x = (object.m - self.m) / (self.k - object.k)
-					y = self(x)
-
-				return [Point(x, y)] if Point(x, y) in self and Point(x, y) in object else []
-
-			elif self.direction == object.direction:
-				if (self.direction == 'horizontal' and self.pos1.y == object.pos1.y) or (self.direction == 'vertical' and self.pos1.x == object.pos1.x):
-					if self.pos1 in object or self.pos2 in object:
-						positions = [self.pos1, self.pos2, object.pos1, object.pos2]
-						res = min([ Segment(positions[i], positions[i-1]) for i in range(4) ], key=lambda x: x.length)
-						if res.direction == 'point':
-							return [res.pos1]
-						else:
-							return [res]
-
-			elif self.direction == 'vertical' and object.direction == 'horizontal':
-				return [Point(self.pos1.x, object.pos1.y)] if Point(self.pos1.x, object.pos1.y) in self and Point(self.pos1.x, object.pos1.y) in object else []
-			elif self.direction == 'horizontal' and object.direction == 'vertical':
-				return [Point(object.pos1.x, self.pos1.y)] if Point(object.pos1.x, self.pos1.y) in self and Point(object.pos1.x, self.pos1.y) in object else []
-
-			return []
+			if self.k:
+				at_line = round(float(object.y), 10) == round(float(self.k * object.x + self.m), 10)
+				in_rect = min(self.pos1.x, self.pos2.x) <= object.x <= max(self.pos1.x, self.pos2.x) and min(self.pos1.y, self.pos2.y) <= object.y <= max(self.pos1.y, self.pos2.y)
+				return [object] if at_line and in_rect else []
+			elif self.direction == 'vertical':
+				in_y = min(self.pos1.y, self.pos2.y) <= object.y <= max(self.pos1.y, self.pos2.y)
+				return [object] if object.x == self.pos1.x and in_y else []
+			elif self.direction == 'horizontal':
+				in_x = min(self.pos1.x, self.pos2.x) <= object.x <= max(self.pos1.x, self.pos2.x)
+				return [object] if object.y == self.pos1.y and in_x else []
 
 		elif hasattr(object, 'intersects') and not isinstance(object, Primitive):
 			return object.intersects(self)
@@ -407,50 +342,12 @@ class Segment(Line):
 		else:
 			return super().intersects(object)
 
-	def split(self, step: int = 1) -> list:
-		if step >= self.length:
-			return [self.pos1, self.pos2]
-		else:
-			return [ Point(float(x), self(x)) for x in range(self.pos1.x, self.pos2.x, step) ] + [self.pos2]
-
 	def at_pos(self, point: Point):
 		return Segment(point, Point(self.pos2.x - self.pos1.x, self.pos2.y - self.pos1.y), name=self.name)
 
 	@property
 	def length(self) -> float:
 		return sqrt( (self.pos2.x - self.pos1.x)**2 + (self.pos2.y - self.pos1.y)**2 )
-
-	@property
-	def center(self) -> Point:
-		return Point((self.pos1.x + self.pos2.x)/2, (self.pos1.y + self.pos2.y)/2)
-
-	def __add__(self, i):
-		if isinstance(i, Point):
-			new_pos1 = Point(self.pos1.x + i.x, self.pos1.y + i.y)
-			new_pos2 = Point(self.pos2.x + i.x, self.pos2.y + i.y)
-			return Segment(new_pos1, new_pos2, name=self.name)
-		elif isinstance(i, (list, tuple)):
-			new_pos1 = Point(self.pos1.x + i[0], self.pos1.y + i[1])
-			new_pos2 = Point(self.pos2.x + i[0], self.pos2.y + i[1])
-			return Segment(new_pos1, new_pos2, name=self.name)
-	def __sub__(self, i):
-		if isinstance(i, i):
-			new_pos1 = Point(self.pos1.x - i.x, self.pos1.y - i.y)
-			new_pos2 = Point(self.pos2.x - i.x, self.pos2.y - i.y)
-			return Segment(new_pos1, new_pos2, name=self.name)
-		elif isinstance(i, (list, tuple)):
-			new_pos1 = Point(self.pos1.x - i[0], self.pos1.y - i[1])
-			new_pos2 = Point(self.pos2.x - i[0], self.pos2.y - i[1])
-			return Segment(new_pos1, new_pos2, name=self.name)
-
-	def __len__(self):
-		return int(self.length)
-	def __call__(self, x: int, return_none: bool = False) -> float:
-		return self.k * x + self.m if self.intersects([x, self.k * x + self.m]) or not return_none else None
-	def __str__(self):
-		return f'{self.name}[({self.pos1} -> {self.pos2}), {self.as_geometry}]'
-	def __repr__(self):
-		return f'Segment({self.pos1}, {self.pos2}, name="{self.name}")'
 
 class Ray(Line):
 	def __init__(self, pos1: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Ray'):
@@ -483,77 +380,6 @@ class Ray(Line):
 
 			if self.direction == 'object':
 				return self.pos1 == object
-
-			return []
-
-		elif isinstance(object, (Ray, Vector)):
-			if self.k != object.k:
-				if object.direction in ['up','down']:
-					x, y = object.pos1.x, self(self.pos1.x)
-				elif object.direction in ['left','right']:
-					x, y = self.x_from_y(object.pos1.y), object.pos1.y
-
-				elif self.direction in ['up','down']:
-					x, y = self.pos1.x, object(self.pos1.x)
-				elif self.direction in ['left','right']:
-					x, y = object.x_from_y(self.pos1.y), self.pos1.y
-
-				else:
-					x = (object.m - self.m) / (self.k - object.k)
-					y = self(x)
-				
-				return [Point(x, y)] if Point(x, y) in self and Point(x, y) in object else []
-
-
-			elif self.direction == object.direction:
-				if (self.direction == 'horizontal' and self.pos1.y == object.pos1.y) or (self.direction == 'vertical' and self.pos1.x == object.pos1.x):
-					if self.pos1 in object or self.pos2 in object:
-						positions = [self.pos1, object.pos1, object.pos2]
-						res = min([ Segment(positions[i], positions[i-1]) for i in range(4) ], key=lambda x: x.length)
-						if res.direction == 'point':
-							return [res.pos1]
-						else:
-							return [res]
-
-			elif object.direction in ['up','down'] and self.direction in ['right','left']:
-				return [Point(object.pos1.x, self.pos1.y)] if Point(object.pos1.x, self.pos1.y) in self and Point(object.pos1.x, self.pos1.y) in object else []
-			elif object.direction in ['right','left'] and self.direction in ['up','down']:
-				return [Point(self.pos1.x, object.pos1.y)] if Point(self.pos1.x, object.pos1.y) in self and Point(self.pos1.x, object.pos1.y) in object else []
-
-			return []
-
-		elif isinstance(object, (Segment, Line)):
-			if self.k != object.k:
-				if object.direction == 'vertical':
-					x, y = object.pos1.x, self(self.pos1.x)
-				elif object.direction == 'horizontal':
-					x, y = self.x_from_y(object.pos1.y), object.pos1.y
-
-				elif self.direction in ['up','down']:
-					x, y = self.pos1.x, object(self.pos1.x)
-				elif self.direction in ['left','right']:
-					x, y = object.x_from_y(self.pos1.y), self.pos1.y
-
-				else:
-					x = (object.m - self.m) / (self.k - object.k)
-					y = self(x)
-				
-				return [Point(x, y)] if Point(x, y) in self and Point(x, y) in object else []
-
-
-			elif self.direction == object.direction:
-				if (self.direction == 'horizontal' and self.pos1.y == object.pos1.y) or (self.direction == 'vertical' and self.pos1.x == object.pos1.x):
-					positions = [self.pos1, object.pos1, object.pos2]
-					res = min([ Segment(positions[i], positions[i-1]) for i in range(4) ], key=lambda x: x.length)
-					if res.direction == 'point':
-						return [res.pos1]
-					else:
-						return [res]
-
-			elif self.direction in ['up','down'] and object.direction == 'horizontal':
-				return [Point(self.pos1.x, object.pos1.y)] if Point(self.pos1.x, object.pos1.y) in self and Point(self.pos1.x, object.pos1.y) in object else []
-			elif self.direction in ['right','left'] and object.direction == 'vertical':
-				return [Point(object.pos1.x, self.pos1.y)] if Point(object.pos1.x, self.pos1.y) in self and Point(object.pos1.x, self.pos1.y) in object else []
 
 			return []
 
@@ -602,37 +428,12 @@ class Ray(Line):
 			elif self.pos2.x < self.pos1.x and self.pos1.y < self.pos2.y:
 				return 'left-up'
 
-	def __add__(self, i):
-		if isinstance(i, Point):
-			new_pos1 = Point(self.pos1.x + i.x, self.pos1.y + i.y)
-			new_pos2 = Point(self.pos2.x + i.x, self.pos2.y + i.y)
-			return Ray(new_pos1, new_pos2, name=self.name)
-		elif isinstance(i, (list, tuple)):
-			new_pos1 = Point(self.pos1.x + i[0], self.pos1.y + i[1])
-			new_pos2 = Point(self.pos2.x + i[0], self.pos2.y + i[1])
-			return Ray(new_pos1, new_pos2, name=self.name)
-	def __sub__(self, i):
-		if isinstance(i, i):
-			new_pos1 = Point(self.pos1.x - i.x, self.pos1.y - i.y)
-			new_pos2 = Point(self.pos2.x - i.x, self.pos2.y - i.y)
-			return Ray(new_pos1, new_pos2, name=self.name)
-		elif isinstance(i, (list, tuple)):
-			new_pos1 = Point(self.pos1.x - i[0], self.pos1.y - i[1])
-			new_pos2 = Point(self.pos2.x - i[0], self.pos2.y - i[1])
-			return Ray(new_pos1, new_pos2, name=self.name)
-
-	def __len__(self):
-		return int(self.length)
-	def __call__(self, x: int, return_none: bool = False) -> float:
-		return self.k * x + self.m if self.intersects([x, self.k * x + self.m]) or not return_none else None
-	def __str__(self):
-		return f'{self.name}[({self.pos1} -> {self.pos2}), {self.as_geometry}]'
-	def __repr__(self):
-		return f'Ray({self.pos1}, {self.pos2}, name="{self.name}")'
-
-class Vector(Segment):
-	def __init__(self, *args, name: str = 'Vector', **kwargs):
-		super().__init__(*args, name=name, **kwargs)
+class VectorMeta(type):
+	def __getitem__(cls, pos):
+		return cls([0,0], pos)
+class Vector(Segment, metaclass=VectorMeta):
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
 
 	def intersects(self, object: Union[Primitive, Point, list, tuple]) -> List[Point]:
 		if isinstance(object, (list, tuple)):
@@ -661,78 +462,6 @@ class Vector(Segment):
 
 			if self.direction == 'object':
 				return self.pos1 == object
-
-			return []
-
-		elif isinstance(object, (Ray, Vector)):
-			if self.k != object.k:
-				if object.direction in ['up','down']:
-					x, y = object.pos1.x, self(self.pos1.x)
-				elif object.direction in ['left','right']:
-					x, y = self.x_from_y(object.pos1.y), object.pos1.y
-
-				elif self.direction in ['up','down']:
-					x, y = self.pos1.x, object(self.pos1.x)
-				elif self.direction in ['left','right']:
-					x, y = object.x_from_y(self.pos1.y), self.pos1.y
-
-				else:
-					x = (object.m - self.m) / (self.k - object.k)
-					y = self(x)
-				
-				return [Point(x, y)] if Point(x, y) in self and Point(x, y) in object else []
-
-
-			elif self.direction == object.direction:
-				if (self.direction == 'horizontal' and self.pos1.y == object.pos1.y) or (self.direction == 'vertical' and self.pos1.x == object.pos1.x):
-					if self.pos1 in object or self.pos2 in object:
-						positions = [self.pos1, object.pos1, object.pos2]
-						res = min([ Segment(positions[i], positions[i-1]) for i in range(4) ], key=lambda x: x.length)
-						if res.direction == 'point':
-							return [res.pos1]
-						else:
-							return [res]
-
-			elif object.direction in ['up','down'] and self.direction in ['right','left']:
-				return [Point(object.pos1.x, self.pos1.y)] if Point(object.pos1.x, self.pos1.y) in self and Point(object.pos1.x, self.pos1.y) in object else []
-			elif object.direction in ['right','left'] and self.direction in ['up','down']:
-				return [Point(self.pos1.x, object.pos1.y)] if Point(self.pos1.x, object.pos1.y) in self and Point(self.pos1.x, object.pos1.y) in object else []
-
-			return []
-
-		elif isinstance(object, (Segment, Line)):
-			if self.k != object.k:
-				if object.direction == 'vertical':
-					x, y = object.pos1.x, self(self.pos1.x)
-				elif object.direction == 'horizontal':
-					x, y = self.x_from_y(object.pos1.y), object.pos1.y
-
-				elif self.direction in ['up','down']:
-					x, y = self.pos1.x, object(self.pos1.x)
-				elif self.direction in ['left','right']:
-					x, y = object.x_from_y(self.pos1.y), self.pos1.y
-
-				else:
-					x = (object.m - self.m) / (self.k - object.k)
-					y = self(x)
-				
-				return [Point(x, y)] if Point(x, y) in self and Point(x, y) in object else []
-
-
-			elif self.direction == object.direction:
-				if (self.direction == 'horizontal' and self.pos1.y == object.pos1.y) or (self.direction == 'vertical' and self.pos1.x == object.pos1.x):
-					if self.pos1 in object or self.pos2 in object:
-						positions = [self.pos1, object.pos1, object.pos2]
-						res = min([ Segment(positions[i], positions[i-1]) for i in range(4) ], key=lambda x: x.length)
-						if res.direction == 'point':
-							return [res.pos1]
-						else:
-							return [res]
-
-			elif self.direction in ['up','down'] and object.direction == 'horizontal':
-				return [Point(self.pos1.x, object.pos1.y)] if Point(self.pos1.x, object.pos1.y) in self and Point(self.pos1.x, object.pos1.y) in object else []
-			elif self.direction in ['right','left'] and object.direction == 'vertical':
-				return [Point(object.pos1.x, self.pos1.y)] if Point(object.pos1.x, self.pos1.y) in self and Point(object.pos1.x, self.pos1.y) in object else []
 
 			return []
 
@@ -830,11 +559,6 @@ class Vector(Segment):
 		elif isinstance(vector, Vector):
 			return Vector(self.pos1 ** vector.pos1, self.pos2 ** vector.pos2)
 
-	def __str__(self):
-		return f'{self.name}[({self.pos1} -> {self.pos2}), {self.as_geometry}]'
-	def __repr__(self):
-		return f'Vector({self.pos1}, {self.pos2}, name="{self.name}")'
-
 
 class Angle:
 	def __init__(self, pos1: Union[Point, list, tuple], midpos: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Angle'):
@@ -917,3 +641,51 @@ class Angle:
 		return f'{self.name}[({self.pos1} -> {self.midpos} -> {self.pos2}), {int(self.degrees)} degrees]'
 	def __repr__(self):
 		return f'Angle({self.pos1} -> {self.midpos} -> {self.pos2}, name="{self.name}")'
+
+
+class PrimitiveGroup:
+	def __init__(self, primitives: List[Primitive], name: str = 'PrimitiveGroup'):
+		self.primitives = []
+		self.name = name
+
+		for i, pr in enumerate(primitives):
+			if isinstance(pr, Primitive):
+				self.primitives.append(pr)
+			else:
+				raise ValueError(f'Composite constructor arg primitives[{i}] is not a Primitive: {pr}')
+
+	def intersects(self, object: Union[Primitive]) -> List[Point]:
+		if not isinstance(object, Composite) and not isinstance(object, PrimitiveGroup):
+			return [ pr.intersects(object) for pr in self.primitives if pr in object ]
+		else:
+			points = []
+			for obj in (object.shapes if isinstance(object, Composite) else object.primitives):
+				for pr in self.primitives:
+					if pr in obj and pr != obj:
+						res = pr.intersects(obj)
+						for point in res:
+							points.append(point[0])
+			return points
+
+	def plot(self):
+		Scene(*self.primitives).show()
+
+	@property
+	def intersections(self) -> List[Point]:
+		points = []
+		for pr1 in self.primitives:
+			for pr2 in self.primitives:
+				if pr1 in pr2 and pr1 != pr2:
+					res = pr1.intersects(pr2)
+					for point in res:
+						points.append(point)
+
+		return list(set(points))
+	
+	def __contains__(self, object):
+		return self.intersects(object)
+
+	def __str__(self):
+		return f'{self.name}({len(self.primitives)} primitives)'
+	def __repr__(self):
+		return f'{self.__class__.__name__}({len(self.primitives)}, name="{self.name}")'
