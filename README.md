@@ -327,13 +327,13 @@ They are Circle and Polygon, they have a common parent empty class Shape, so you
 >>> isinstance(a, Shape)
 False
 ```
-Also they have an intersects method that returns list of Point objects:
+Also they have an intersects method that returns list of Point objects ( you can set check_inside kwarg to False, by default it is True ):
 ```py
 >>> from geopy import Polygon, Circle, Vector
 >>>
 >>> polygon = Polygon([0,0], [1,1], [1,-1], [0,-1])
 >>> vec = Vector[10,10]
->>> polygon.intersects(vec)
+>>> polygon.intersects(vec, check_inside=True)
 [Point(0.0, 0.0, name="Point"), Point(1.0, 1.0, name="Point")]
 >>> vec.intersects(polygon)
 [Point(0.0, 0.0, name="Point"), Point(1.0, 1.0, name="Point")]
@@ -353,6 +353,7 @@ Polygon([Point(0.5, 0.25, name="Point"), Point(1.5, 1.25, name="Point"), Point(1
 You can show your Shape in matplotlib:
 ```py
 Polygon([0,0], [1,1], [1,-1], [0,-1]).plot()
+Circle([0,0], 10).plot()
 ```
 And in simply tkinter:
 ```py
@@ -485,4 +486,75 @@ Or by 2 points:
 Circle(Point[0.0, 0.0], 1.4142135623730951)
 >>> circle_by_points([0,0], [1,0])
 Circle(Point[0.0, 0.0], 1.0)
+````
+It has property to get perimeter and area:
+```py
+>>> circle = Circle([0,0], 1)
+>>> circle.perimeter
+6.283185307179586
+>>> circle.area
+3.141592653589793
+```
+And as_geometry property to get circle equation:
+```py
+>>> circle.as_geometry
+'(x - 0.0)**2 + (y - 0.0)**2 = 1**2'
+```
+You can solve this equation manually using circle.radius and circle.center or use functions to get X from Y and Y from X:
+```py
+>>> circle.y_from_x(0)
+[-1.0, 1.0]
+>>> [ Point(0, y) for y in circle.y_from_x(0) ]
+[Point(0.0, -1.0, name="Point"), Point(0.0, 1.0, name="Point")]
+```
+You can get circle center fast:
+```py
+>>> circle.x; circle.y; circle.center
+0.0
+0.0
+Point(0.0, 0.0, name="Point")
+```
+
+# Object groups
+Geopy has a group for primitives and shapes, that you can use as default shape.
+You can get intersections of PrimitiveGroup or Composite inside:
+```py
+>>> from geopy import Composite, Triangle, Box, Circle
+>>> p1 = Triangle([1,0],[0,0],[0,1])
+>>> p2 = Box([0,0], [5,5])
+>>> c1 = Circle([1,1], 2)
+>>> c2 = Circle([-1,1], 0.5)
+>>> Composite(p1, p2, c1, c2)
+Composite([Triangle([Point(1.0, 0.0, name="Point"), Point(0.0, 0.0, name="Point"), Point(0.0, 1.0, name="Point")], name="Triangle", pos=Triangle center[0.3333333333333333, 0.3333333333333333]), Box([Point(0.0, 0.0, name="Point"), Point(0.0, 5.0, name="Point"), Point(5.0, 5.0, name="Point"), Point(5.0, 0.0, name="Point")], name="Box", pos=Box center[2.5, 2.5]), Circle(Point[1.0, 1.0], 2), Circle(Point[-1.0, 1.0], 0.5)], name="Composite", pos=Point[0.0, 0.0])
+>>> composite = Composite(p1, p2, c1, c2)
+>>> composite.intersections
+[Point(0.0, 2.732050807568877, name="Point"), Point(2.732050807568877, 0.0, name="Point"), Point(-0.9375, 0.5039216291753892, name="Point"), Point(1.0, 0.0, name="Point"), Point(-0.9375, 1.4960783708246108, name="Point"), Point(-0.9375, 0.5039216291753892, name="Point"), Point(0.0, 1.0, name="Point"), Point(-0.9375, 1.4960783708246108, name="Point"), Point(0.0, 1.0, name="Point"), Point(0.0, 2.732050807568877, name="Point"), Point(0.0, 0.0, name="Point"), Segment(Point[1.0, 0.0], Point[0.0, 0.0], name="Segment"), Segment(Point[0.0, 1.0], Point[0.0, 0.0], name="Segment"), Point(0.0, 0.0, name="Point"), Segment(Point[1.0, 0.0], Point[0.0, 0.0], name="Segment"), Point(0.0, 0.0, name="Point"), Segment(Point[0.0, 0.0], Point[0.0, 1.0], name="Segment"), Point(0.0, 0.0, name="Point"), Point(2.732050807568877, 0.0, name="Point"), Point(1.0, 0.0, name="Point")]
+```
+And they have a intersects method ( you can set check_inside kwarg to False if it is a Composite method, by default it is True ):
+```py
+...
+```
+
+## Composite
+It is a group of shapes:
+```py
+>>> from geopy import Composite, Triangle, Box, Circle
+>>> p1 = Triangle([1,0],[0,0],[0,1])
+>>> p2 = Box([0,0], [5,5])
+>>> c1 = Circle([1,1], 2)
+>>> c2 = Circle([-1,1], 0.5)
+>>> Composite(p1, p2, c1, c2)
+Composite([Triangle([Point(1.0, 0.0, name="Point"), Point(0.0, 0.0, name="Point"), Point(0.0, 1.0, name="Point")], name="Triangle", pos=Triangle center[0.3333333333333333, 0.3333333333333333]), Box([Point(0.0, 0.0, name="Point"), Point(0.0, 5.0, name="Point"), Point(5.0, 5.0, name="Point"), Point(5.0, 0.0, name="Point")], name="Box", pos=Box center[2.5, 2.5]), Circle(Point[1.0, 1.0], 2), Circle(Point[-1.0, 1.0], 0.5)], name="Composite", pos=Point[0.0, 0.0])
+```
+It has a center of mass:
+```py
+>>> composite.center_of_mass
+Point(0.7083333333333334, 1.2083333333333335, name="Composite center")
+```
+It also has a perimeter and area:
+```py
+>>> composite.perimeter
+39.12217683032206
+>>> composite.area
+38.85176877775662
 ```
