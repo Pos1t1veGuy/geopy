@@ -1,5 +1,9 @@
 # Geopy - python geometry library
 
+With this library you can create primitives and shapes, show it with matplotlib, get intersections and transform. Here is:
+Vector, Segment, Line, Ray and Point primitives;
+Polygons and Circle shapes.
+
 # Primitives
 Polygons are made from primitives. Firstly they have a common parent empty class Primitive, so you can do:
 ```py
@@ -517,7 +521,7 @@ Point(0.0, 0.0, name="Point")
 
 # Object groups
 Geopy has a group for primitives and shapes, that you can use as default shape.
-You can get intersections of PrimitiveGroup or Composite inside:
+You can get intersections inside of PrimitiveGroup or Composite:
 ```py
 >>> from geopy import Composite, Triangle, Box, Circle
 >>> p1 = Triangle([1,0],[0,0],[0,1])
@@ -530,9 +534,16 @@ Composite([Triangle([Point(1.0, 0.0, name="Point"), Point(0.0, 0.0, name="Point"
 >>> composite.intersections
 [Point(0.0, 2.732050807568877, name="Point"), Point(2.732050807568877, 0.0, name="Point"), Point(-0.9375, 0.5039216291753892, name="Point"), Point(1.0, 0.0, name="Point"), Point(-0.9375, 1.4960783708246108, name="Point"), Point(-0.9375, 0.5039216291753892, name="Point"), Point(0.0, 1.0, name="Point"), Point(-0.9375, 1.4960783708246108, name="Point"), Point(0.0, 1.0, name="Point"), Point(0.0, 2.732050807568877, name="Point"), Point(0.0, 0.0, name="Point"), Segment(Point[1.0, 0.0], Point[0.0, 0.0], name="Segment"), Segment(Point[0.0, 1.0], Point[0.0, 0.0], name="Segment"), Point(0.0, 0.0, name="Point"), Segment(Point[1.0, 0.0], Point[0.0, 0.0], name="Segment"), Point(0.0, 0.0, name="Point"), Segment(Point[0.0, 0.0], Point[0.0, 1.0], name="Segment"), Point(0.0, 0.0, name="Point"), Point(2.732050807568877, 0.0, name="Point"), Point(1.0, 0.0, name="Point")]
 ```
-And they have a intersects method ( you can set check_inside kwarg to False if it is a Composite method, by default it is True ):
+Or get intersections with another object ( you can set check_inside kwarg to False if it is a Composite method, by default it is True ):
 ```py
-...
+>>> c3 = Circle([0,0], 2)
+>>> composite.intersects(c3)
+[Point(2.0, 0.0, name="Point"), Point(0.0, 2.0, name="Point"), Point(-0.8228756555322952, 1.822875655532295, name="Point"), Point(1.822875655532295, -0.8228756555322952, name="Point"), Point(-2.782339674459376, 0.09266032554062398, name="Point"), Point(-0.09266032554062398, 2.782339674459376, name="Point")]
+```
+You can show PrimitiveGroup and Composite in matplotlib:
+```py
+composite.plot()
+PrimitiveGroup(Segment([1,0],[0,1])).plot()
 ```
 
 ## Composite
@@ -557,4 +568,41 @@ It also has a perimeter and area:
 39.12217683032206
 >>> composite.area
 38.85176877775662
+```
+
+## PrimitiveGroup
+It is a group of primitives and can not contain shapes:
+```py
+>>> l1 = Line([1,0], [0,1])
+>>> v1 = Vector[1,1]
+>>> s1 = Segment([11,88], [0,1])
+>>> PrimitiveGroup(l1, v1, s1)
+PrimitiveGroup([Line(Point[1.0, 0.0], Point[0.0, 1.0], name="Line"), Vector(Point[0.0, 0.0], Point[1.0, 1.0], name="Vector"), Segment(Point[11.0, 88.0], Point[0.0, 1.0], name="Segment")], name="PrimitiveGroup")
+```
+
+
+# Scene
+You can show your shapes, primitives or groups in matplotlib. To do it you must create Scene with objects or add it after:
+```py
+>>> from geopy import *
+>>> l1 = Line([1,0], [0,1])
+>>> v1 = Vector[1,1]
+>>> s1 = Segment([11,88], [0,1])
+>>> group1 = PrimitiveGroup(l1, v1, s1)
+>>>
+>>> sh1 = Triangle([0,11], [2,3], [5,5])
+>>> sh2 = Box([-1,-1],[-4,-4])
+>>> group2 = Composite(sh1, sh2)
+>>>
+>>> sh3 = Circle([0,0], 2)
+>>> sh4 = Circle([5,5], 4)
+>>>
+>>> scene = Scene(group1, *group1.intersections)
+>>> scene.add(group2)
+>>> scene.add(sh3)
+>>> scene.add(sh4)
+```
+It has show method:
+```py
+scene.show()
 ```
