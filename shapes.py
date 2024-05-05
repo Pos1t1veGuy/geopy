@@ -237,15 +237,6 @@ class Polygon(Shape):
 		return point
 
 	@property
-	def circum_circle(self) -> float:
-		last_vertice = self.center_of_mass
-		for vertice in self.vertices:
-			if Segment(self.center_of_mass, vertice).length > Segment(self.center_of_mass, last_vertice).length:
-				last_vertice = vertice
-
-		return Circle(self.center_of_mass, Segment(self.center_of_mass, last_vertice).length)
-
-	@property
 	def center_of_mass(self) -> float:
 		y = [ vertice.y for vertice in self.vertices ]
 		x = [ vertice.x for vertice in self.vertices ]
@@ -337,10 +328,18 @@ class Box(Polygon):
 
 		super().__init__([pos1, Point(pos1.x, pos2.y), pos2, Point(pos2.x, pos1.y)], name=name, pos=pos)
 
+	@property
+	def circum_circle(self) -> float:
+		return Circle(self.center_of_mass, Segment(self.center_of_mass, self.vertices[0]).length)
+
 class Triangle(Polygon):
 	def __init__(self, pos1: Point, pos2: Point, pos3: Point, name: str = 'Triangle', pos: Point = None):
 		super().__init__([pos1, pos2, pos3], name=name, pos=pos)
 		self.side1, self.side2, self.side3 = self.segments
+
+	@property
+	def circum_circle(self) -> float:
+		return Circle(self.orthocenter, Segment(self.orthocenter, self.vertices[0]).length)
 
 	@property
 	def hypotenuse(self):
@@ -350,6 +349,10 @@ class Triangle(Polygon):
 	def legs(self):
 		if self.angle_type == 'right':
 			return [ segment for segment in self.segments if segment != self.hypotenuse ]
+
+	@property
+	def orthocenter(self) -> Point:
+		return self.segments[0].perpendicular.intersects(self.segments[1].perpendicular)[0]
 
 	@property
 	def angle_type(self) -> str:

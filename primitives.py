@@ -52,9 +52,12 @@ class Point(Primitive, metaclass=PointMeta):
 		k, m = -1/object.k, self.y - (-1/object.k * self.x)
 		return line_by_function( lambda x: float(k * x + m) )
 
+	def copy(self):
+		return Point(self.x, self.y, name=self.name)
+
 	@staticmethod
 	def random(pos1, pos2):
-		# pos1 and pos2 must be Point object
+		# pos1 and pos2 must be Point object, returns random point from rectangle [pos1 x pos2]
 		return Point(r.uniform(pos1.x, pos2.x), r.uniform(pos1.y, pos2.y))
 
 	@property
@@ -258,7 +261,11 @@ class Line(Primitive):
 
 	@property
 	def angle(self):
-		return Angle(self.pos1, self.pos2, Point(self.pos2.x + 1, self.pos2.y))
+		if not self.direction == 'point':
+			second_pos = Point(self.pos2.x + 1, self.pos1.y)
+			while second_pos.pos in [self.pos1.pos, self.pos2.pos]:
+				second_pos += [1, 0]
+			return Angle(self.pos2, self.pos1, second_pos)
 
 	@property
 	def perpendicular(self):
@@ -348,6 +355,21 @@ class Segment(Line):
 	@property
 	def length(self) -> float:
 		return sqrt( (self.pos2.x - self.pos1.x)**2 + (self.pos2.y - self.pos1.y)**2 )
+
+	@property
+	def perpendicular(self):
+		if self.k:
+			k = -1 / self.k
+			m = self.center.y - k * self.center.x
+			return line_by_function( lambda x: k * x + m )
+		elif self.direction == 'vertical':
+			return Line(self.center, self.center + [1,0])
+		elif self.direction == 'horizontal':
+			return Line(self.center, self.center + [0,1])
+
+	@property
+	def center(self) -> Point:
+		return Point((self.pos1.x + self.pos2.x)/2, (self.pos1.y + self.pos2.y)/2)
 
 class Ray(Line):
 	def __init__(self, pos1: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Ray'):
@@ -570,7 +592,7 @@ class Angle:
 			midpos = Point(*midpos)
 
 		if pos1.pos in [pos2.pos, midpos.pos] or pos2.pos in [pos1.pos, midpos.pos] or midpos.pos in [pos2.pos, pos1.pos]:
-			raise ValueError(f'constructor arguments 1, 2 and 3 must be Points with different positions, not {pos1.pos}, {pos2.pos}, {midpos.pos}')
+			raise ValueError(f'constructor arguments 1, 2 and 3 must be Points with different positions, not {pos1.pos}, {midpos.pos}, {pos2.pos}')
 
 		self.pos1 = pos1
 		self.midpos = midpos
@@ -586,27 +608,27 @@ class Angle:
 
 	@property
 	def cos(self) -> float:
-		return self.vec1.dot(self.vec2) / (self.vec1.length * self.vec2.length)
+		return 1 if self.pos2 in Segment(self.pos1, self.midpos) or self.pos1 in Segment(self.pos2, self.midpos) else (self.vec1.dot(self.vec2)) / (self.vec1.length * self.vec2.length)
 	@property
 	def sin(self) -> float:
-		return sqrt(1 - self.cos**2)
+		return 0 if self.pos2 in Segment(self.pos1, self.midpos) or self.pos1 in Segment(self.pos2, self.midpos) else sqrt(1 - self.cos**2)
 	@property
 	def tan(self) -> float:
-		return self.sin / self.cos if self.cos != 0 else 0.0
+		return 0 if self.pos2 in Segment(self.pos1, self.midpos) or self.pos1 in Segment(self.pos2, self.midpos) else self.sin / self.cos if self.cos != 0 else 0.0
 
 	@property
 	def radians(self) -> float:
-		return acos(self.cos)
+		return 0 if self.pos2 in Segment(self.pos1, self.midpos) or self.pos1 in Segment(self.pos2, self.midpos) else acos(self.cos)
 	@property
 	def degrees(self) -> float:
-		return degrees(self.radians)
+		return 0 if self.pos2 in Segment(self.pos1, self.midpos) or self.pos1 in Segment(self.pos2, self.midpos) else degrees(self.radians)
 	@property
 	def minutes(self):
-		return self.degrees * 60
+		return 0 if self.pos2 in Segment(self.pos1, self.midpos) or self.pos1 in Segment(self.pos2, self.midpos) else self.degrees * 60
 		
 	@property
 	def bisector(self) -> Ray:
-		return Ray(self.midpos, Point( (self.pos1.x + self.pos2.x)/2, (self.pos1.y + self.pos2.y)/2, name=name ))
+		return Ray(self.midpos, Point( (self.pos1.x + self.pos2.x)/2, (self.pos1.y + self.pos2.y)/2 ))
 
 	@property
 	def type(self) -> str:
