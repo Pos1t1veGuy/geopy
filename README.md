@@ -162,21 +162,6 @@ You can get perpendicular:
 >>> Line([1,1], [0,0]).perpendicular
 Line(Point[1.0, -1.0], Point[2.0, -2.0], name="Line")
 ```
-### Line primitive
-Line and Segment has the same direction options, you can get its directions:
-```py
->>> Line([1,0], [0,0]).direction
-'horizontal'
->>> Line([1,1], [0,0]).direction
-'normal'
->>> Line([0,1], [0,0]).direction
-'vertical'
-```
-You can get perpendicular:
-```py
->>> Line([1,1], [0,0]).perpendicular
-Line(Point[1.0, -1.0], Point[2.0, -2.0], name="Line")
-```
 Also you can get line by point and degree and by linear function:
 ```py
 >>> from geopy import line_by_angle, line_by_function
