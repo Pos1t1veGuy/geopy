@@ -12,9 +12,26 @@ class Shape:
 	...
 
 
+def circle_by_points(pos1: Point, pos2: Point) -> 'Circle':
+	radius = Segment(pos1, pos2).length
+	return Circle(pos1, radius)
+
+
 class Polygon(Shape):
-	def __init__(self, vertices: List[[ Point, Point, ... ]], name: str = 'Polygon', pos: Point = None, segment_object = Segment):
-		self.vertices = vertices
+	def __init__(self, *args: List[[ Point, Point, ... ]], name: str = 'Polygon', pos: Point = None, segment_object = Segment):
+		if len(args) < 3:
+			raise ValueError(f'Length of points list at constructor must be >2, not {len(args)}')
+
+		self.vertices = []
+		for i, point in enumerate(args):
+			if isinstance(point, (tuple, list)) and len(point) == 2:
+				self.vertices.append(Point(point))
+			elif isinstance(point, Point):
+				self.vertices.append(point)
+			else:
+				raise ValueError(f'Point {i} at points list at constructor must be Point object or list/tuple with 2 numbers, not {point}, {type(point)}')
+
+
 		self.segments = []
 		self.angles = []
 		self.name = name
@@ -47,13 +64,21 @@ class Polygon(Shape):
 					return [object]
 
 		elif isinstance(object, (Segment, Vector)):
-			points = [ object.intersects(segment) for segment in self.segments if object in segment ]
+			points = []
+			for segment in self.segments:
+				if object in segment:
+					for point in object.intersects(segment):
+						points.append(point)
 			if points:
 				return points
 			# Segment and Vector may be inside polygon and do not intersect it, so it will be checked in self.inside
 
-		elif isinstance(object, (Ray, Line, Segment, Vector)):
-			return [ object.intersects(segment) for segment in self.segments if object in segment ]
+		elif isinstance(object, (Ray, Line)):
+			points = []
+			for segment in self.segments:
+				if object in segment:
+					for point in object.intersects(segment):
+						points.append(point)
 			# Ray and Line can not be inside polygon and do not intersect it, so it will not be checked in self.inside
 
 		elif isinstance(object, Polygon):
@@ -113,7 +138,7 @@ class Polygon(Shape):
 		return all([ len(positions) % 2 != 0 and len(positions) != 0 for positions in rays.values() ])
 		# if every ray from "rays" dict has intersection count that % 2 == 0 and != 0 then point inside
 
-	def scale(self, factor: float, center: Point = None):
+	def scale(self, factor: float, center: Point = None) -> 'Polygon':
 		if not center:
 			center = self.center_of_mass
 		elif isinstance(center, (tuple, list)):
@@ -123,9 +148,9 @@ class Polygon(Shape):
 		for vertice in self.vertices:
 			new_vertices.append( Point(center.x + factor * (vertice.x - center.x), center.y + factor * (vertice.y - center.y)) )
 
-		return Polygon(new_vertices, name=self.name, pos=Point(center.x + factor * (self.pos.x - center.x), center.y + factor * (self.pos.y - center.y)))
+		return self.__class__(*new_vertices, name=self.name, pos=Point(center.x + factor * (self.pos.x - center.x), center.y + factor * (self.pos.y - center.y)))
 
-	def rotate(self, angle: Union[int, Angle], center: Point = None):
+	def rotate(self, angle: Union[int, Angle], center: Point = None) -> 'Polygon':
 		if center is None:
 			angle = angle.radians if isinstance(angle, Angle) else angle
 		if not center:
@@ -145,29 +170,29 @@ class Polygon(Shape):
 				translated_x * sin_angle + translated_y * cos_angle + center.y,
 			))
 
-		return Polygon(new_vertices, name=self.name, pos=self.pos)
+		return self.__class__(*new_vertices, name=self.name, pos=self.pos)
 
-	def segments_by_point(self, point: Point) -> list:
+	def segments_by_point(self, point: Point) -> List[Segment]:
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
 		return [ segment for segment in self.segments if segment.intersects(point) ]
-	def segments_by_fromto_point(self, point: Point):
+	def segments_by_fromto_point(self, point: Point) -> List[Segment]:
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
 		return [ segment for segment in self.segments if point.pos in [segment.pos1, segment.pos2] ]
-	def segment_by_from_point(self, point: Point):
+	def segments_by_from_point(self, point: Point) -> List[Segment]:
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
 		return [ segment for segment in self.segments if point.pos == segment.pos1 ]
-	def segment_by_to_point(self, point: Point):
+	def segments_by_to_point(self, point: Point) -> List[Segment]:
 		if isinstance(position, (list,tuple)):
 			position = Point(*position)
 		return [ segment for segment in self.segments if point.pos == segment.pos2 ]
 
-	def angle_by_pos(self, point: Point):
+	def angle_by_pos(self, point: Point) -> Angle:
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
-		return [ vertice for vertice in self.vertices if point.pos == vertice.pos ]
+		return [ vertice for vertice in self.vertices if point.pos == vertice.pos ][0]
 
 	def view(self):
 		root = Tk()
@@ -181,11 +206,11 @@ class Polygon(Shape):
 
 		root.mainloop()
 
-	def at_pos(self, point: Union[Point, list, tuple]):
+	def at_pos(self, point: Union[Point, list, tuple]) -> 'Polygon':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
 		shift = Point(point.x - self.pos.x, point.y - self.pos.y)
-		return self.__class__([vertex + shift for vertex in self.vertices], name=self.name, pos=self.pos + point)
+		return self.__class__(*[vertex + shift for vertex in self.vertices], name=self.name, pos=self.pos + point)
 
 	def to_pos(self, point: Union[Point, list, tuple]):
 		if isinstance(point, (list,tuple)):
@@ -230,14 +255,14 @@ class Polygon(Shape):
 		plt.show()
 
 	@property
-	def random_point(self):
+	def random_point(self) -> Point:
 		point = Point.random(self.min_pos, self.max_pos)
 		while not point in self:
 			point = Point.random(self.min_pos, self.max_pos)
 		return point
 
 	@property
-	def center_of_mass(self) -> float:
+	def center_of_mass(self) -> Point:
 		y = [ vertice.y for vertice in self.vertices ]
 		x = [ vertice.x for vertice in self.vertices ]
 		return Point(sum(x)/len(x), sum(y)/len(y), name=f'{self.name} center')
@@ -252,7 +277,7 @@ class Polygon(Shape):
 		return sum([segment.length for segment in self.segments])
 
 	@property
-	def as_tk_polygon(self):
+	def as_tk_polygon(self) -> List[float]:
 		res = []
 		for pos in self.vertices:
 			for xy in pos:
@@ -260,30 +285,30 @@ class Polygon(Shape):
 		return res
 
 	@property
-	def min_x(self):
+	def min_x(self) -> float:
 		return min( x for x, y in self.vertices )
 	@property
-	def min_y(self):
+	def min_y(self) -> float:
 		return min( y for x, y in self.vertices )
 	@property
-	def max_x(self):
+	def max_x(self) -> float:
 		return max( x for x, y in self.vertices )
 	@property
-	def max_y(self):
+	def max_y(self) -> float:
 		return max( y for x, y in self.vertices )
 
 	@property
-	def min_pos(self):
+	def min_pos(self) -> float:
 		return Point(self.min_y, self.min_x, name=f'{self.name}_min')
 	@property
-	def max_pos(self):
+	def max_pos(self) -> float:
 		return Point(self.max_y, self.max_x, name=f'{self.name}_min')
 
 	@property
-	def width(self):
+	def width(self) -> float:
 		return abs(self.max_x - self.min_x)
 	@property
-	def height(self):
+	def height(self) -> float:
 		return abs(self.max_y - self.min_y)
 
 	@property
@@ -293,24 +318,24 @@ class Polygon(Shape):
 	def __contains__(self, object):
 		return self.intersects(object, check_inside=True)
 
-	def __add__(self, point: Union[Point, list, tuple]):
+	def __add__(self, point: Union[Point, list, tuple]) -> 'Polygon':
 		point = Point(point)
-		return self.__class__([ vertice + point for vertice in self.vertices ], name=self.name, pos=self.pos + point)
-	def __sub__(self, point: Point):
+		return self.__class__(*[ vertice + point for vertice in self.vertices ], name=self.name, pos=self.pos + point)
+	def __sub__(self, point: Union[Point, list, tuple]) -> 'Polygon':
 		point = Point(point)
-		return self.__class__([ vertice - point for vertice in self.vertices ], name=self.name, pos=self.pos - point)
-	def __mul__(self, point: Point):
+		return self.__class__(*[ vertice - point for vertice in self.vertices ], name=self.name, pos=self.pos - point)
+	def __mul__(self, point: Union[Point, list, tuple]) -> 'Polygon':
 		point = Point(point)
-		return self.__class__([ vertice * point for vertice in self.vertices ], name=self.name, pos=self.pos * point)
-	def __truediv__(self, point: Point):
+		return self.__class__(*[ vertice * point for vertice in self.vertices ], name=self.name, pos=self.pos * point)
+	def __truediv__(self, point: Union[Point, list, tuple]) -> 'Polygon':
 		point = Point(point)
-		return self.__class__([ vertice / point for vertice in self.vertices ], name=self.name, pos=self.pos / point)
-	def __floordiv__(self, point: Point):
+		return self.__class__(*[ vertice / point for vertice in self.vertices ], name=self.name, pos=self.pos / point)
+	def __floordiv__(self, point: Union[Point, list, tuple]) -> 'Polygon':
 		point = Point(point)
-		return self.__class__([ vertice // point for vertice in self.vertices ], name=self.name, pos=self.pos // point)
-	def __pow__(self, point: Point):
+		return self.__class__(*[ vertice // point for vertice in self.vertices ], name=self.name, pos=self.pos // point)
+	def __pow__(self, point: Union[Point, list, tuple]) -> 'Polygon':
 		point = Point(point)
-		return self.__class__([ vertice ** point for vertice in self.vertices ], name=self.name, pos=self.pos ** point)
+		return self.__class__(*[ vertice ** point for vertice in self.vertices ], name=self.name, pos=self.pos ** point)
 
 	def __len__(self):
 		return int(self.perimeter)
@@ -322,31 +347,31 @@ class Polygon(Shape):
 class Box(Polygon):
 	def __init__(self, pos1: Point, pos2: Point, name: str = 'Box', pos: Point = None):
 		if isinstance(pos1, (tuple, list)):
-			pos1 = Point(*pos1)
+			pos1 = Point(pos1)
 		if isinstance(pos2, (tuple, list)):
-			pos2 = Point(*pos2)
+			pos2 = Point(pos2)
 
-		super().__init__([pos1, Point(pos1.x, pos2.y), pos2, Point(pos2.x, pos1.y)], name=name, pos=pos)
+		super().__init__(pos1, Point(pos1.x, pos2.y), pos2, Point(pos2.x, pos1.y), name=name, pos=pos)
 
 	@property
-	def circum_circle(self) -> float:
+	def circum_circle(self) -> 'Circle':
 		return Circle(self.center_of_mass, Segment(self.center_of_mass, self.vertices[0]).length)
 
 class Triangle(Polygon):
 	def __init__(self, pos1: Point, pos2: Point, pos3: Point, name: str = 'Triangle', pos: Point = None):
-		super().__init__([pos1, pos2, pos3], name=name, pos=pos)
+		super().__init__(pos1, pos2, pos3, name=name, pos=pos)
 		self.side1, self.side2, self.side3 = self.segments
 
 	@property
-	def circum_circle(self) -> float:
+	def circum_circle(self) -> 'Circle':
 		return Circle(self.orthocenter, Segment(self.orthocenter, self.vertices[0]).length)
 
 	@property
-	def hypotenuse(self):
+	def hypotenuse(self) -> Segment:
 		if self.angle_type == 'right':
-			return max(self.segments, key=lambda segment: segment.lenth)
+			return max(self.segments, key=lambda segment: segment.length)
 	@property
-	def legs(self):
+	def legs(self) -> List[Segment]:
 		if self.angle_type == 'right':
 			return [ segment for segment in self.segments if segment != self.hypotenuse ]
 
@@ -356,11 +381,11 @@ class Triangle(Polygon):
 
 	@property
 	def angle_type(self) -> str:
-		if 90 in [ angle.degree for angle in self.angles ]:
+		if 90 in [ angle.degrees for angle in self.angles ]:
 			return 'right'
-		elif len([ angle for angle in self.angles if angle.degree > 90 ]) > 0:
+		elif len([ angle for angle in self.angles if angle.degrees > 90 ]) > 0:
 			return 'obtuse'
-		elif len([ angle for angle in self.angles if angle.degree < 90 ]) == 3:
+		elif len([ angle for angle in self.angles if angle.degrees < 90 ]) == 3:
 			return 'acute'
 		else:
 			return 'scalene'
@@ -384,26 +409,31 @@ class Triangle(Polygon):
 class Rhombus(Polygon):
 	def __init__(self, center: Point, diagonal_x: int, diagonal_y: int, name: str = 'Rhombus', pos: Point = None):
 		if isinstance(center, (tuple, list)):
-			center = Point(*center)
+			center = Point(center)
 
 		self.center = center
 		self.diagonal_x = diagonal_x
 		self.diagonal_y = diagonal_y
 
-		self.segment_x = Segement(self.center - [diagonal_x/2, 0], self.center + [diagonal_x/2, 0])
-		self.segment_y = Segement(self.center + [0, diagonal_y/2], self.center + [diagonal_x/2, 0])
+		self.segment_x = Segment(self.center - [diagonal_x/2, 0], self.center + [diagonal_x/2, 0])
+		self.segment_y = Segment(self.center + [0, diagonal_y/2], self.center + [diagonal_x/2, 0])
 
-		super().__init__([
+		super().__init__(
 			self.center + [0, diagonal_y/2],
 			self.center - [diagonal_x/2, 0],
 			self.center - [0, diagonal_y/2],
 			self.center + [diagonal_x/2, 0],
-		], name=name, pos=pos)
+		name=name, pos=pos)
 
 class Circle(Shape):
 	def __init__(self, center: Point, radius: int, name: str = 'Circle'):
 		if isinstance(center, (tuple, list)):
 			center = Point(*center)
+
+		if not isinstance(radius, (float, int)):
+			raise ValueError(f'Incorrect radius for circle: it must be positive number, not {radius}, {type(radius)}')
+		if radius <= 0:
+			raise ValueError(f'Incorrect radius for circle: it must be positive number, not {radius}, {type(radius)}')
 
 		self.radius = radius
 		self.diameter = 2 * radius
@@ -430,15 +460,19 @@ class Circle(Shape):
 					c = object.m**2 + self.x**2 - 2 * object.m * self.y + self.y**2 - self.radius**2,
 				)
 				return [ Point(x, object(x)) for x in eq.solve() if Point(x, object(x)) in object ]
-			elif object.direction in ['horizontal', 'left', 'right']:
+			elif object.direction in ['horizontal', 'left', 'right'] and self.x_from_y(object.pos1.y):
 				return [ Point(x, object.pos1.y) for x in self.x_from_y(object.pos1.y) if Point(x, object.pos1.y) in object ]
-			elif object.direction in ['vertical', 'up', 'down']:
+			elif object.direction in ['vertical', 'up', 'down'] and self.y_from_x(object.pos1.x):
 				return [ Point(object.pos1.x, y) for y in self.y_from_x(object.pos1.x) if Point(object.pos1.x, y) in object ]
 			elif object.direction == 'point':
 				return object.pos1 if self.intersects(object.pos1) else []
 
 		elif isinstance(object, Polygon):
-			res = [ self.intersects(segment) for segment in object.segments if segment in self ]
+			res = []
+			for segment in object.segments:
+				if segment in self:
+					for point in self.intersects(segment):
+						res.append(point)
 			if res:
 				return res
 
@@ -447,7 +481,7 @@ class Circle(Shape):
 			if distance.length > self.radius + object.radius:
 				return []
 
-			if distance == 0:
+			if distance.length == 0:
 				return [Circle(self.center, self.radius, name=self.name)]
 
 			else:
@@ -457,9 +491,9 @@ class Circle(Shape):
 					res = self.intersects(distance)
 					return res[0] if res[0] in self and res[0] in object else []
 
-				elif distance.length > self.radius + object.radius:
+				elif distance.length < self.radius + object.radius:
 					a = (self.radius**2 - object.radius**2 + distance.length**2) / (2 * distance.length)
-					h = sqrt(self.radius**2 - a**2)
+					h = sqrt(self.radius**2 - a**2) if self.radius**2 - a**2 > 0 else sqrt(object.radius**2 - a**2)
 					intercenter = Point(
 						self.x + a * (object.x - self.x) / distance.length,
 						self.y + a * (object.y - self.y) / distance.length,
@@ -479,7 +513,7 @@ class Circle(Shape):
 		else:
 			raise ValueError() # недоделал
 
-	def at_pos(self, position: List[[int, int]]):
+	def at_pos(self, position: List[[int, int]]) -> 'Circle':
 		if self.center != position:
 			return Circle(position, self.radius, name=self.name)
 
@@ -509,7 +543,7 @@ class Circle(Shape):
 
 		return []
 
-	def scale(factor: float):
+	def scale(factor: float) -> 'Circle':
 		return Circle(self.pos, self.radius*factor, name=self.name)
 
 	def view(self):
@@ -548,47 +582,47 @@ class Circle(Shape):
 			]
 
 	@property
-	def x(self):
+	def x(self) -> float:
 		return self.center.x
 	@property
-	def y(self):
+	def y(self) -> float:
 		return self.center.y
 
 	@property
-	def area(self):
+	def area(self) -> float:
 		return pi * self.radius**2
 	@property
-	def perimeter(self):
+	def perimeter(self) -> float:
 		return 2 * pi * self.radius
 
 	@property
-	def as_geometry(self):
+	def as_geometry(self) -> str:
 		return f'(x - {self.x})**2 + (y - {self.y})**2 = {self.radius}**2'
 	
 	def __contains__(self, object):
 		return self.intersects(object, check_inside=True)
 
-	def __add__(self, point: Union[Point, list, tuple]):
+	def __add__(self, point: Union[Point, list, tuple]) -> 'Circle':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
 		return Circle(self.center + point, self.radius, name=self.name)
-	def __sub__(self, point: Point):
+	def __sub__(self, point: Union[Point, list, tuple]) -> 'Circle':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
 		return Circle(self.center - point, self.radius, name=self.name)
-	def __mul__(self, point: Point):
+	def __mul__(self, point: Union[Point, list, tuple]) -> 'Circle':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
 		return Circle(self.center * point, self.radius, name=self.name)
-	def __truediv__(self, point: Point):
+	def __truediv__(self, point: Union[Point, list, tuple]) -> 'Circle':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
 		return Circle(self.center / point, self.radius, name=self.name)
-	def __floordiv__(self, point: Point):
+	def __floordiv__(self, point: Union[Point, list, tuple]) -> 'Circle':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
 		return Circle(self.center // point, self.radius, name=self.name)
-	def __pow__(self, point: Point):
+	def __pow__(self, point: Union[Point, list, tuple]) -> 'Circle':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
 		return Circle(self.center ** point, self.radius, name=self.name)
@@ -600,76 +634,3 @@ class Circle(Shape):
 		return f"{self.name}({self.center}, radius={self.radius})"
 	def __repr__(self):
 		return f"{self.__class__.__name__}({self.center}, {self.radius})"
-
-
-class Composite(Shape):
-	def __init__(self, shapes: List[Shape], name: str = 'Composite', pos: Point = [0,0]):
-		self.pos = Point(*pos) if isinstance(pos, (tuple, list)) else (pos if isinstance(pos, Point) else Point(0,0))
-		self.name = name
-		self.shapes = []
-
-		for i, shape in enumerate(shapes):
-			if isinstance(shape, Composite):
-				for sh in shape.shapes:
-					self.shapes.append(sh)
-			elif isinstance(shape, Shape):
-				self.shapes.append(shape)
-			else:
-				raise ValueError(f'Composite constructor arg shapes[{i}] is not a Shape: {shape}')
-
-	def intersects(self, object: Union[Primitive, Shape], check_inside: bool = True) -> List[Point]:
-		if not isinstance(object, Composite):
-			return [ shape.intersects(object, check_inside=check_inside) for shape in self.shapes ]
-		elif isinstance(object, PrimitiveGroup):
-			return object.intersects(self)
-		else:
-			points = []
-			for sh1 in self.shapes:
-				for sh2 in object.shapes:
-					if sh1 in sh2:
-						res = sh1.intersects(sh2, check_inside=check_inside)
-						if isinstance(res, list):
-							for i in res:
-								points.append(i)
-						else:
-							points.append(res)
-
-			return points
-
-	def plot(self):
-		Scene(*self.shapes, self.center_of_mass).show()
-
-	@property
-	def intersections(self) -> List[Point]:
-		points = []
-		for shape1 in self.shapes:
-			for shape2 in self.shapes:
-				if shape1 in shape2 and shape1 != shape2:
-					res = shape1.intersects(shape2)
-					for point in res:
-						points.append(point)
-
-		return list(set(points))
-
-	@property
-	def center_of_mass(self) -> float:
-		y = [ vertice.y for vertice in self.shapes.center_of_mass ]
-		x = [ vertice.x for vertice in self.shapes.center_of_mass ]
-		return Point(sum(x)/len(x), sum(y)/len(y), name=f'{self.name} center')
-
-	@property
-	def area(self) -> float:
-		return sum([shape.area for shape in self.shapes])
-	@property
-	def perimeter(self) -> float:
-		return sum([shape.perimeter for shape in self.shapes])
-	
-	def __contains__(self, object):
-		return self.intersects(object, check_inside=True)
-
-	def __len__(self):
-		return int(self.perimeter)
-	def __str__(self):
-		return f'{self.name}([{self.pos}], {len(self.shapes)} shapes)'
-	def __repr__(self):
-		return f'{self.__class__.__name__}({self.shapes}, name="{self.name}", pos={self.pos})'
