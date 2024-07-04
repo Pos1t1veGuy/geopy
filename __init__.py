@@ -16,3 +16,7 @@ for N in range(1, max_dimension_for_names):
     globals()[f'Ray{N}D'] = Ray
     globals()[f'Vector{N}D'] = Vector
     globals()[f'Segment{N}D'] = Segment
+
+    globals()[f'Space{N}D'] = Space
+    globals()[f'AffineSpace{N}D'] = AffineSpace
+    globals()[f'ASpace{N}D'] = ASpace

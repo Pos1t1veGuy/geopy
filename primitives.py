@@ -33,9 +33,9 @@ def eq_len_axeslists(*args: 'AxesList') -> List[list]:
 
 def reduse_axeslists(*args: 'AxesList') -> List['AxesList']:
 	max_dimension = max([ len(l) for l in args ])
-	for i in range(max_dimension):
-		if all([ l[i] == 0 for l in args ]):
-			return [ AxesList(l[:i]) for l in args ]
+	for i in range(max_dimension)[::-1]:
+		if not all([ l[i] == 0 for l in args ]):
+			return [ AxesList(l[:i+1]) for l in args ]
 	return args
 
 
@@ -84,7 +84,7 @@ class Point(Primitive, metaclass=PointMeta):
 					setattr(self, letters[i], letters[i] + str(c))
 				self.axes.append(float(axis))
 			else:
-				raise ValueError("Invalid initialization arguments for 'Point'.")
+				raise ValueError(f"Invalid initialization arguments for 'Point': {args}")
 
 		self.name = name
 
@@ -335,6 +335,12 @@ class Line(Primitive):
 			else:
 				return (y - self.m) / self.k if self.intersects([(y - self.m) / self.k, y]) or not return_none else None
 
+	def is_parallel(self, object: Union['Line', 'Segment', 'Ray', 'Vector', list, tuple]) -> bool:
+		return self.vector.is_parallel(object.vector)
+
+	def is_perpendicular(self, object: Union['Line', 'Segment', 'Ray', 'Vector', list, tuple]) -> bool:
+		return self.vector.is_perpendicular(object.vector)
+
 	def at_pos(self, point: Point) -> 'Line':
 		if isinstance(point, (list, tuple)):
 			point = Point(point)
@@ -565,10 +571,7 @@ class Ray(Line):
 
 class VectorMeta(type):
 	def __getitem__(cls, pos):
-		if isinstance(pos, tuple):
-			return cls(*pos)
-		else:
-			return cls([0,0], pos)
+		return cls([0,0], pos)
 class Vector(Segment, metaclass=VectorMeta):
 	def __init__(self, *args, name="Vector", **kwargs):
 		super().__init__(*args, name=name, **kwargs)
@@ -579,14 +582,18 @@ class Vector(Segment, metaclass=VectorMeta):
 	def compare_directions(self, vector: Union['Vector', 'Point', tuple, list]) -> bool:
 		if isinstance(vector, (tuple, list, Point)):
 			vector = Vector[vector]
-		return np.dot(np.array(self.to_zero.pos2.axes), np.array(vector.to_zero.pos2.axes)) > 0
+
+		axes = eq_len_axeslists(self.to_zero.pos2.axes, vector.to_zero.pos2.axes)
+		return np.dot(np.array(axes[0]), np.array(axes[1])) > 0
 
 	def is_perpendicular(self, vector: Union['Vector', 'Point', tuple, list, 'Line', 'Ray', 'Vector', 'Segment']) -> bool:
 		if isinstance(vector, (tuple, list, Point)):
 			vector = Vector[vector]
 		elif isinstance(vector, (Segment, Line, Ray)):
 			vector = vector.vector
-		return np.dot(np.array(self.to_zero.pos2.axes), np.array(vector.to_zero.pos2.axes)) == 0
+
+		axes = eq_len_axeslists(self.to_zero.pos2.axes, vector.to_zero.pos2.axes)
+		return np.dot(np.array(axes[0]), np.array(axes[1])) == 0
 
 	def is_parallel(self, vector: Union['Vector', 'Point', tuple, list, 'Line', 'Ray', 'Vector', 'Segment']) -> bool:
 		if isinstance(vector, (tuple, list, Point)):
@@ -794,3 +801,44 @@ class Angle:
 		return f'{self.name}[({self.pos1} -> {self.midpos} -> {self.pos2}), {int(self.degrees)} degrees]'
 	def __repr__(self):
 		return f'Angle({self.pos1} <- {self.midpos} -> {self.pos2}, name="{self.name}")'
+
+
+class AffineSpace:
+	def __init__(self, origin: Union['Point', tuple, list], vectors: List['Vector'], name: str = 'Affine'):
+		if isinstance(origin, (tuple, list)):
+			origin = Point(origin)
+		self.origin = origin
+
+		if all([ isinstance(vector, (Point, tuple, list)) for vector in vectors ]):
+			vectors = [ Vector(origin, i).to_zero for i in vectors ]
+
+		if all([ isinstance(vector, Vector) for vector in vectors ]):
+			self.vectors = [ vector.to_vector.project_to(self.dimension) for vector in vectors ]
+			self.name = name
+		else:
+			raise ValueError(f'"vectors" elements must be list of points or vectors, not {vectors}')
+
+	def transform(self, point: Union[Point, list, tuple]) -> Point:
+		if isinstance(point, (list, tuple)):
+			point = Point(*point)
+
+		basis_matrix = np.array([vec.pos2.axes + [0] * (self.dimension-vec.pos2.dimension) for vec in self.vectors])
+		return Point(self.origin.axes + np.dot(basis_matrix.T, point.axes))
+
+	@property
+	def dimension(self) -> int:
+		return len(self.origin)
+
+	def __str__(self):
+		return f"{self.name}[{self.origin}, {self.dimension}D]"
+	def __repr__(self):
+		return f"{self.__class__.__name__}{self.dimension}D({self.origin}, {self.vectors})"
+
+ASpace = AffineSpace
+
+class Space(AffineSpace):
+	def __init__(self, origin: 'Point', points: List['Point'], name: str = 'Space'):
+		super().__init__(origin, vectors, name=name)
+
+		if any([ not self.vectors[i].is_perpendicular(self.vectors[i-1]) for i in range(len(self.vectors)) ]):
+			raise ValueError(f'Vectors must be perpendiculars')
