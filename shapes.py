@@ -51,8 +51,13 @@ class Polygon2D(Shape):
 			if isinstance(self.vertices[i-1], (list,tuple)):
 				self.vertices[i-1] = Point(*self.vertices[i-1])
 
-			self.segments.append( segment_object(self.vertices[i-1], vertice, name=f'{self.name}_segment{i}' if vertice.name == 'Point' else vertice.name) )
-			
+			vertices = eq_len_axeslists(self.vertices[i-1], vertice)
+			dimension = max([v.dimension for v in vertices])
+			if dimension != 2:
+				self.segments.append( segment_object(vertices[0], vertices[1], name=f'{self.name}_segment{i}' if vertice.name == 'Point' else vertice.name) )
+			else:
+				raise ValueError(f'{self.__class__.__name__} supports only 2D primitives')
+
 		for i, vertice in enumerate(self.vertices):
 			self.angles.append( Angle(self.vertices[i-2], self.vertices[i-1], vertice, name=f'{self.name}_angle{i}' if vertice.name == 'Point' else vertice.name) )
 
