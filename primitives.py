@@ -99,12 +99,12 @@ class Point(Primitive, metaclass=PointMeta):
 		else:
 			raise NotImplementedError(f"height_to not implemented for type {type(object)}")
 
-	def project_to_primitive(self, pr: Union['Line', 'Segment', 'Ray', 'Vector']) -> 'Point':
+	def project_to_line(self, pr: 'Line') -> 'Point':
 		p1 = np.array(pr.pos1.axes)
-		line_vector = pr.vector
+		axes, line_vector = eq_len_axeslists(self.axes, pr.vector.pos2.axes)
 
 		return Point(
-			*(p1 + np.dot(np.array(self.axes) - p1, line_vector) / np.dot(line_vector, line_vector) * line_vector),
+			*(p1 + np.array(np.dot(np.array(axes) - p1, line_vector) / np.dot(line_vector, line_vector)) * line_vector),
 			name=f'{self.name}_project'
 		)
 
@@ -121,9 +121,13 @@ class Point(Primitive, metaclass=PointMeta):
 		max_dimension = max(pos1.dimension, pos2.dimension)
 
 		if uniform:
-			return self.__class__(r.uniform(pos1.axes[i], pos2.axes[i]) for i in max_dimension, name=self.name)
+			return self.__class__([r.uniform(pos1.axes[i], pos2.axes[i]) for i in max_dimension], name=self.name)
 		else:
-			return self.__class__( r.randint(pos1.axes[i], pos2.axes[i]) for i in max_dimension, name=self.name )
+			return self.__class__([r.randint(pos1.axes[i], pos2.axes[i]) for i in max_dimension], name=self.name)
+
+	@property
+	def to_vector(self) -> 'Vector':
+		return Vector[self]
 
 	@property
 	def dimension(self) -> int:
@@ -408,27 +412,24 @@ class Line(Primitive):
 	def dimension(self) -> int:
 		return max(len(self.pos1.axes), len(self.pos2.axes))
 
-	@property
-	def perpendicular(self) -> 'Line':
-		if self.dimension == 1:
-			return None
-		elif self.dimension == 2:
-			if self.k:
-				k = -1 / self.k
-				m = self.center.y - k * self.center.x
-				return line_by_function( lambda x: k * x + m, name=f'{self.name}_perpendicular' )
-			elif self.direction == 'vertical':
-				return Line(self.center, self.center + [1,0], name=f'{self.name}_perpendicular')
-			elif self.direction == 'horizontal':
-				return Line(self.center, self.center + [0,1], name=f'{self.name}_perpendicular')
-		elif self.dimension > 2:
-			ortho_vectors = []
-			for i in range(self.pos1.dimension - 1):
-				vector = [0] * self.pos1.dimension
-				vector[i] = 1
-				ortho_vectors.append(Vector(vector))
+	def _gram_schmidt(self, vectors: List[np.ndarray]) -> List[np.ndarray]:
+		ortho_vectors = []
+		for v in vectors:
+			w = v - sum(np.dot(v, u) * u for u in ortho_vectors)
+			if (w > 1e-10).any():
+				ortho_vectors.append(w / np.linalg.norm(w))
+		return ortho_vectors
 
-			return Space(self.center.copy(), ortho_vectors, name=f'{self.name}_perpendicular')
+	@property
+	def perpendicular(self) -> 'Space':
+		direction_vector_np = self.vector.pos2.axes
+
+		identity_matrix = np.eye(self.dimension)
+
+		vectors = [direction_vector_np] + [identity_matrix[i] for i in range(self.dimension) if not np.allclose(identity_matrix[i], direction_vector_np)]
+		ortho_vectors = self._gram_schmidt(np.array(vectors))[1:]  # Exclude the direction vector itself
+
+		return Space(self.center, [Vector(self.center, self.center + Point(v)) for v in ortho_vectors], name=f'{self.name}_perpendicular_space')
 
 	@property
 	def direction(self) -> Union[str, 'Vector']:
@@ -472,6 +473,10 @@ class Line(Primitive):
 				return f'y(x) = { self.k if self.k != 1 else "" }x{ (f" + {self.m}" if self.m > 0 else f" - {-1*self.m}") if self.m else "" }'
 		else:
 			return f'r(t) = {self.pos1} + {self.vector} * t'
+
+	@property
+	def center(self) -> Point:
+		return Point([ (self.pos1[i] + self.pos2[i])/2 for i in range(self.dimension) ], name=f'{self.name}_center')
 
 	def __contains__(self, object):
 		return self.intersects(object)
@@ -517,10 +522,6 @@ class Segment(Line):
 	@property
 	def length(self) -> float:
 		return sqrt(sum([ (self.pos2[i] - self.pos1[i])**2 for i in range(self.dimension) ]))
-
-	@property
-	def center(self) -> Point:
-		return Point([ (self.pos1[i] + self.pos2[i])/2 for i in range(self.dimension) ], name=f'{self.name}_center')
 
 class Ray(Line):
 	def __init__(self, pos1: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Ray'):
@@ -617,7 +618,7 @@ class Vector(Segment, metaclass=VectorMeta):
 			vector = vector.vector
 
 		axes = eq_len_axeslists(self.to_zero.pos2.axes, vector.to_zero.pos2.axes)
-		return np.dot(np.array(axes[0]), np.array(axes[1])) == 0
+		return round(np.dot(np.array(axes[0]), np.array(axes[1])), 8) == 0
 
 	def is_parallel(self, vector: Union['Vector', 'Point', tuple, list, 'Line', 'Ray', 'Vector', 'Segment']) -> bool:
 		if isinstance(vector, (tuple, list, Point)):
@@ -837,7 +838,7 @@ class AffineSpace:
 			vectors = [ Vector(origin, i, name=f'{self.name}_vector{i}').to_zero for i in range(len(vectors)) ]
 
 		if all([ isinstance(vector, Vector) for vector in vectors ]):
-			self.vectors = [ vector.to_vector.project_to(self.dimension) for vector in vectors ]
+			self.vectors = [ vector.to_vector for vector in vectors ]
 			self.name = name
 		else:
 			raise ValueError(f'"vectors" elements must be list of points or vectors, not {vectors}')
@@ -851,7 +852,7 @@ class AffineSpace:
 
 	@property
 	def dimension(self) -> int:
-		return len(self.origin)
+		return len(self.vectors)
 
 	def __str__(self):
 		return f"{self.name}[{self.origin}, {self.dimension}D]"
@@ -862,7 +863,9 @@ ASpace = AffineSpace
 
 class Space(AffineSpace):
 	def __init__(self, origin: 'Point', points: List['Point'], name: str = 'Space'):
-		super().__init__(origin, vectors, name=name)
+		super().__init__(origin, points, name=name)
 
 		if any([ not self.vectors[i].is_perpendicular(self.vectors[i-1]) for i in range(len(self.vectors)) ]):
 			raise ValueError(f'Vectors must be perpendiculars')
+		if len( set([ round(self.vectors[i].length, 8) for i in range(len(self.vectors)) ]) ) > 1:
+			raise ValueError(f'Vectors must have equal lengths')
