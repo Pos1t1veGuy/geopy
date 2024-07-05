@@ -27,7 +27,7 @@ class Scene2D:
 				self.add_ray(object)
 			elif isinstance(object, Line):
 				self.add_line(object)
-			elif isinstance(object, Polygon):
+			elif isinstance(object, Polygon2D):
 				self.add_polygon(object)
 			elif isinstance(object, Circle):
 				self.add_circle(object)
@@ -48,7 +48,7 @@ class Scene2D:
 		else:
 			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 2D')
 
-	def add_polygon(self, polygon: Polygon):
+	def add_polygon(self, polygon: Polygon2D):
 		if polygon.dimension == 2:
 			vertices = [(point.x, point.y) for point in polygon.vertices]
 			polygon = MPLPolygon(vertices, edgecolor='b', fc='None')

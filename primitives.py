@@ -24,7 +24,7 @@ def get_angle_between(pr1: 'Primitive', pr2: 'Primitive') -> 'Angle':
 		int_point = pr1.intersects(pr2)
 		if int_point:
 			pos1, pos2 = pr1.random_point, pr2.random_point
-			return Angle(pos1, int_point, pos2)
+			return Angle(pos1, int_point, pos2, name=f'{pr1.name}_{pr2.name}_angle')
 
 
 def eq_len_axeslists(*args: 'AxesList') -> List[list]:
@@ -88,17 +88,28 @@ class Point(Primitive, metaclass=PointMeta):
 
 		self.name = name
 
-	def height_to(self, object: Primitive) -> 'Line':
-		if object.k:
-			k, m = -1/object.k, self.y - (-1/object.k * self.x)
-			return line_by_function( lambda x: float(k * x + m) )
-		elif object.direction in ['up', 'down', 'vertial']:
-			return Line(self, self + [1,0])
-		elif object.direction in ['right', 'left', 'horizontal']:
-			return Line(self, self + [0,1])
-
 	def copy(self) -> 'Point':
 		return Point(*self.axes, name=self.name)
+
+	def height_to(self, object: Primitive) -> 'Segment':
+		if isinstance(object, Point):
+			return Segment(self, np.linalg.norm(np.array(self.axes) - np.array(object.axes)), name=f'{self.name}_height')
+		elif isinstance(object, Primitive):
+			return Segment(self, self.project_to_line(object), name=f'{self.name}_height')
+		else:
+			raise NotImplementedError(f"height_to not implemented for type {type(object)}")
+
+	def project_to_primitive(self, pr: Union['Line', 'Segment', 'Ray', 'Vector']) -> 'Point':
+		p1 = np.array(pr.pos1.axes)
+		line_vector = pr.vector
+
+		return Point(
+			*(p1 + np.dot(np.array(self.axes) - p1, line_vector) / np.dot(line_vector, line_vector) * line_vector),
+			name=f'{self.name}_project'
+		)
+
+	def project_to(self, dimension: int) -> 'Point':
+		return self.__class__(self.axes[:dimension], name=f'{self.name}_project')
 
 	@staticmethod
 	def random(pos1: Union['Point', tuple, list], pos2: Union['Point', tuple, list], uniform: bool = True) -> 'Point':
@@ -109,7 +120,10 @@ class Point(Primitive, metaclass=PointMeta):
 			pos2 = Point(pos2)
 		max_dimension = max(pos1.dimension, pos2.dimension)
 
-		return Point( r.uniform(pos1.axes[i], pos2.axes[i]) for i in max_dimension ) if uniform else Point( r.randint(pos1.axes[i], pos2.axes[i]) for i in max_dimension )
+		if uniform:
+			return self.__class__(r.uniform(pos1.axes[i], pos2.axes[i]) for i in max_dimension, name=self.name)
+		else:
+			return self.__class__( r.randint(pos1.axes[i], pos2.axes[i]) for i in max_dimension, name=self.name )
 
 	@property
 	def dimension(self) -> int:
@@ -133,85 +147,85 @@ class Point(Primitive, metaclass=PointMeta):
 
 	def __add__(self, object: Union[int, float]) -> 'Point':
 		if isinstance(object, (int, float)):
-			return Point([axis + object for axis in self.axes])
+			return self.__class__([axis + object for axis in self.axes], name=self.name)
 		elif isinstance(object, Point):
-			return Point([self.axes[i] + object.axes[i] for i in range(max(self.dimension, object.dimension))])
+			return self.__class__([self.axes[i] + object.axes[i] for i in range(max(self.dimension, object.dimension))], name=self.name)
 		elif isinstance(object, (tuple, list)):
 			object = AxesList(object)
-			return Point([self.axes[i] + object[i] for i in range(max(self.dimension, len(object)))])
+			return self.__class__([self.axes[i] + object[i] for i in range(max(self.dimension, len(object)))], name=self.name)
 		elif isinstance(object, Vector):
-			return Point([self.axes[i] + (object.pos2.axes[i] - object.pos1.axes[i]) for i in range(max(self.dimension, object.dimension))])
+			return self.__class__([self.axes[i] + (object.pos2.axes[i] - object.pos1.axes[i]) for i in range(max(self.dimension, object.dimension))])
 		else:
-			raise ValueError(f"Unsupported operand type(s) for +: 'Point' and '{type(object).__name__}'")
+			raise ValueError(f"Unsupported operand type(s) for +: '{self.__class__.__name__}' and '{type(object).__name__}'")
 
 	def __sub__(self, object: Union[int, float]) -> 'Point':
 		if isinstance(object, (int, float)):
-			return Point([axis - object for axis in self.axes])
+			return self.__class__([axis - object for axis in self.axes], name=self.name)
 		elif isinstance(object, Point):
-			return Point([self.axes[i] - object.axes[i] for i in range(max(self.dimension, object.dimension))])
+			return self.__class__([self.axes[i] - object.axes[i] for i in range(max(self.dimension, object.dimension))], name=self.name)
 		elif isinstance(object, (tuple, list)):
 			object = AxesList(object)
-			return Point([self.axes[i] - object[i] for i in range(max(self.dimension, len(object)))])
+			return self.__class__([self.axes[i] - object[i] for i in range(max(self.dimension, len(object)))], name=self.name)
 		elif isinstance(object, Vector):
-			return Point([self.axes[i] - (object.pos2.axes[i] - object.pos1.axes[i]) for i in range(max(self.dimension, object.dimension))])
+			return self.__class__([self.axes[i] - (object.pos2.axes[i] - object.pos1.axes[i]) for i in range(max(self.dimension, object.dimension))], name=self.name)
 		else:
-			raise ValueError(f"Unsupported operand type(s) for -: 'Point' and '{type(object).__name__}'")
+			raise ValueError(f"Unsupported operand type(s) for -: '{self.__class__.__name__}' and '{type(object).__name__}'")
 
 	def __mul__(self, object: Union[int, float]) -> 'Point':
 		if isinstance(object, (int, float)):
-			return Point([axis * object for axis in self.axes])
+			return self.__class__([axis * object for axis in self.axes], name=self.name)
 		elif isinstance(object, Point):
-			return Point([self.axes[i] * object.axes[i] for i in range(max(self.dimension, object.dimension))])
+			return self.__class__([self.axes[i] * object.axes[i] for i in range(max(self.dimension, object.dimension))], name=self.name)
 		elif isinstance(object, (tuple, list)):
 			object = AxesList(object)
-			return Point([self.axes[i] * object[i] for i in range(max(self.dimension, len(object)))])
+			return self.__class__([self.axes[i] * object[i] for i in range(max(self.dimension, len(object)))], name=self.name)
 		else:
-			raise ValueError(f"Unsupported operand type(s) for *: 'Point' and '{type(object).__name__}'")
+			raise ValueError(f"Unsupported operand type(s) for *: '{self.__class__.__name__}' and '{type(object).__name__}'")
 
 	def __truediv__(self, object: Union[int, float]) -> 'Point':
 		try:
 			if isinstance(object, (int, float)):
-				return Point([axis / object for axis in self.axes])
+				return self.__class__([axis / object for axis in self.axes], name=self.name)
 			elif isinstance(object, Point):
-				return Point([self.axes[i] / object.axes[i] for i in range(max(self.dimension, object.dimension))])
+				return self.__class__([self.axes[i] / object.axes[i] for i in range(max(self.dimension, object.dimension))], name=self.name)
 			elif isinstance(object, (tuple, list)):
 				object = AxesList(object)
-				return Point([self.axes[i] / object[i] for i in range(max(self.dimension, len(object)))])
+				return self.__class__([self.axes[i] / object[i] for i in range(max(self.dimension, len(object)))], name=self.name)
 			else:
-				raise ValueError(f"Unsupported operand type(s) for /: 'Point' and '{type(object).__name__}'")
+				raise ValueError(f"Unsupported operand type(s) for /: '{self.__class__.__name__}' and '{type(object).__name__}'")
 		except ZeroDivisionError:
 			raise ZeroDivisionError(f'ZeroDivisionError: {self} / {object}')
 
 	def __floordiv__(self, object: Union[int, float]) -> 'Point':
 		try:
 			if isinstance(object, (int, float)):
-				return Point([axis // object for axis in self.axes])
+				return self.__class__([axis // object for axis in self.axes], name=self.name)
 			elif isinstance(object, Point):
-				return Point([self.axes[i] // object.axes[i] for i in range(max(self.dimension, object.dimension))])
+				return self.__class__([self.axes[i] // object.axes[i] for i in range(max(self.dimension, object.dimension))], name=self.name)
 			elif isinstance(object, (tuple, list)):
 				object = AxesList(object)
-				return Point([self.axes[i] // object[i] for i in range(max(self.dimension, len(object)))])
+				return self.__class__([self.axes[i] // object[i] for i in range(max(self.dimension, len(object)))], name=self.name)
 			else:
-				raise ValueError(f"Unsupported operand type(s) for //: 'Point' and '{type(object).__name__}'")
+				raise ValueError(f"Unsupported operand type(s) for //: '{self.__class__.__name__}' and '{type(object).__name__}'")
 		except ZeroDivisionError:
 			raise ZeroDivisionError(f'ZeroDivisionError: {self} // {object}')
 
 	def __pow__(self, object: Union[int, float]) -> 'Point':
 		if isinstance(object, (int, float)):
-			return Point([axis ** object for axis in self.axes])
+			return self.__class__([axis ** object for axis in self.axes], name=self.name)
 		elif isinstance(object, Point):
-			return Point([self.axes[i] ** object.axes[i] for i in range(max(self.dimension, object.dimension))])
+			return self.__class__([self.axes[i] ** object.axes[i] for i in range(max(self.dimension, object.dimension))], name=self.name)
 		elif isinstance(object, (tuple, list)):
 			object = AxesList(object)
-			return Point([self.axes[i] ** object[i] for i in range(max(self.dimension, len(object)))])
+			return self.__class__([self.axes[i] ** object[i] for i in range(max(self.dimension, len(object)))], name=self.name)
 		else:
-			raise ValueError(f"Unsupported operand type(s) for **: 'Point' and '{type(object).__name__}'")
+			raise ValueError(f"Unsupported operand type(s) for **: '{self.__class__.__name__}' and '{type(object).__name__}'")
 
 	def __len__(self):
 		return len(self.axes)
 
 	def __neg__(self):
-		return Point([-axis[i] for axis in self.axes])
+		return self.__class__([-axis[i] for axis in self.axes], name=self.name)
 	def __pos__(self):
 		return self
 
@@ -275,7 +289,7 @@ class Line(Primitive):
 					d.append(direction[i])
 
 			t_values = (np.array(p2) - np.array(p1)) / np.array(d)
-			return np.all(t_values == t_values[0])
+			return [object.copy()] if np.all(t_values == t_values[0]) else []
 
 		elif isinstance(object, (Ray, Vector, Segment, Line)):
 			coefficients = np.zeros((self.dimension, 2))
@@ -294,12 +308,12 @@ class Line(Primitive):
 
 			if isinstance(object, (Segment, Vector)):
 				if 0 <= s <= 1:
-					return Point(np.array(self.pos1.axes) + t * np.array(self.vector.pos2.axes))
+					return [Point(np.array(self.pos1.axes) + t * np.array(self.vector.pos2.axes), name=f'{self.name}_{object.name}_intersection')]
 			elif isinstance(object, Ray):
 				if s >= 0:
-					return Point(np.array(self.pos1.axes) + t * np.array(self.vector.pos2.axes))
+					return [Point(np.array(self.pos1.axes) + t * np.array(self.vector.pos2.axes), name=f'{self.name}_{object.name}_intersection')]
 			elif isinstance(object, Line):
-				return Point(np.array(self.pos1.axes) + t * np.array(self.vector.pos2.axes))
+				return [Point(np.array(self.pos1.axes) + t * np.array(self.vector.pos2.axes), name=f'{self.name}_{object.name}_intersection')]
 
 		elif hasattr(object, 'intersects') and not isinstance(object, Primitive):
 			return object.intersects(self)
@@ -355,12 +369,12 @@ class Line(Primitive):
 		if dimension == 0:
 			return Point(name=self.name)
 		elif dimension == 1:
-			return Line([-1], [1])
+			return Line([-1], [1], name=self.name)
 		elif dimension >= 2:
 			if dimension >= self.dimension:
 				return self.copy()
 			else:
-				return Line(list(self.pos1.axes[:dimension]), list(self.pos2.axes[:dimension]), name=self.name)
+				return self.__class__(list(self.pos1.axes[:dimension]), list(self.pos2.axes[:dimension]), name=self.name)
 
 	@property
 	def to_segment(self):
@@ -388,7 +402,7 @@ class Line(Primitive):
 				second_pos = Point(self.pos2.x + 1, self.pos1.y)
 				while second_pos.pos in [self.pos1.pos, self.pos2.pos]:
 					second_pos += [1, 0]
-				return Angle(self.pos2, self.pos1, second_pos)
+				return Angle(self.pos2, self.pos1, second_pos, name=f'{self.name}_angle')
 
 	@property
 	def dimension(self) -> int:
@@ -396,15 +410,25 @@ class Line(Primitive):
 
 	@property
 	def perpendicular(self) -> 'Line':
-		if self.dimension >= 2:
+		if self.dimension == 1:
+			return None
+		elif self.dimension == 2:
 			if self.k:
 				k = -1 / self.k
 				m = self.center.y - k * self.center.x
-				return line_by_function( lambda x: k * x + m )
+				return line_by_function( lambda x: k * x + m, name=f'{self.name}_perpendicular' )
 			elif self.direction == 'vertical':
-				return Line(self.center, self.center + [1,0])
+				return Line(self.center, self.center + [1,0], name=f'{self.name}_perpendicular')
 			elif self.direction == 'horizontal':
-				return Line(self.center, self.center + [0,1])
+				return Line(self.center, self.center + [0,1], name=f'{self.name}_perpendicular')
+		elif self.dimension > 2:
+			ortho_vectors = []
+			for i in range(self.pos1.dimension - 1):
+				vector = [0] * self.pos1.dimension
+				vector[i] = 1
+				ortho_vectors.append(Vector(vector))
+
+			return Space(self.center.copy(), ortho_vectors, name=f'{self.name}_perpendicular')
 
 	@property
 	def direction(self) -> Union[str, 'Vector']:
@@ -427,7 +451,7 @@ class Line(Primitive):
 	@property
 	def vector(self) -> 'Vector':
 		if not isinstance(self, Vector):
-			return Vector[self.pos2 - self.pos1]
+			return Vector([0,0], self.pos2 - self.pos1, name=f'{self.name}_vector')
 		else:
 			self.copy()
 
@@ -481,7 +505,7 @@ class Segment(Line):
 		if isinstance(object, Point):
 			for i in range(self.dimension):
 				if object[i] < min(self.pos1[i], self.pos2[i]) or object[i] > max(self.pos1[i], self.pos2[i]):
-					return False
+					return []
 			return super().intersects(object)
 
 		elif hasattr(object, 'intersects') and not isinstance(object, Primitive):
@@ -496,7 +520,7 @@ class Segment(Line):
 
 	@property
 	def center(self) -> Point:
-		return Point([ (self.pos1[i] + self.pos2[i])/2 for i in range(self.dimension) ])
+		return Point([ (self.pos1[i] + self.pos2[i])/2 for i in range(self.dimension) ], name=f'{self.name}_center')
 
 class Ray(Line):
 	def __init__(self, pos1: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Ray'):
@@ -510,11 +534,11 @@ class Ray(Line):
 			for i in range(self.dimension):
 				if self.vector.pos2[i] == 0:
 					if object[i] != self.pos1[i]:
-						return False
+						return []
 				else:
 					t = (object[i] - self.pos1[i]) / self.vector.pos2[i]
 					if t < 0:
-						return False
+						return []
 			return super().intersects(object)
 
 		elif hasattr(object, 'intersects') and not isinstance(object, Primitive):
@@ -664,7 +688,7 @@ class Vector(Segment, metaclass=VectorMeta):
 	def normalize(self) -> 'Vector':
 		length = self.length
 		if self.direction != 'point':
-			return Vector(self.pos1, Point(self.pos1.x + (self.pos2.x - self.pos1.x) / length, self.pos1.y + (self.pos2.y - self.pos1.y) / length))
+			return Vector(self.pos1, Point(self.pos1.x + (self.pos2.x - self.pos1.x) / length, self.pos1.y + (self.pos2.y - self.pos1.y) / length), name=f'{self.name}_normalized')
 		else:
 			return self
 
@@ -675,39 +699,39 @@ class Vector(Segment, metaclass=VectorMeta):
 
 	def __add__(self, vector) -> 'Vector':
 		if isinstance(vector, (float, int)):
-			return Vector(self.pos1, Point(self.pos1.x + vector, self.pos2.y + vector))
+			return Vector(self.pos1, Point(self.pos1.x + vector, self.pos2.y + vector), name=self.name)
 		elif isinstance(vector, Vector):
-			return Vector(self.pos1 + vector.pos1, self.pos2 + vector.pos2)
+			return Vector(self.pos1 + vector.pos1, self.pos2 + vector.pos2, name=self.name)
 
 	def __sub__(self, vector) -> 'Vector':
 		if isinstance(vector, (float, int)):
-			return Vector(self.pos1, Point(self.pos1.x - vector, self.pos2.y - vector))
+			return Vector(self.pos1, Point(self.pos1.x - vector, self.pos2.y - vector), name=self.name)
 		elif isinstance(vector, Vector):
-			return Vector(self.pos1 * vector.pos1, self.pos2 * vector.pos2)
+			return Vector(self.pos1 * vector.pos1, self.pos2 * vector.pos2, name=self.name)
 
 	def __mul__(self, vector):
 		if isinstance(vector, (float, int)):
-			return Vector(self.pos1, Point([ (self.pos2[i] - self.pos1[i]) * vector for i in range(self.dimension) ])) # self.pos1[i] * 
+			return Vector(self.pos1, Point([ (self.pos2[i] - self.pos1[i]) * vector for i in range(self.dimension) ]), name=self.name) # self.pos1[i] * 
 		elif isinstance(vector, Vector):
-			return Vector(self.pos1 * vector.pos1, self.pos2 * vector.pos2)
+			return Vector(self.pos1 * vector.pos1, self.pos2 * vector.pos2, name=self.name)
 
 	def __truediv__(self, vector) -> 'Vector':
 		if isinstance(vector, (float, int)):
-			return Vector(self.pos1, Point(self.pos1.x / vector, self.pos2.y / vector))
+			return Vector(self.pos1, Point(self.pos1.x / vector, self.pos2.y / vector), name=self.name)
 		elif isinstance(vector, Vector):
-			return Vector(self.pos1 / vector.pos1, self.pos2 / vector.pos2)
+			return Vector(self.pos1 / vector.pos1, self.pos2 / vector.pos2, name=self.name)
 
 	def __floordiv__(self, vector) -> 'Vector':
 		if isinstance(vector, (float, int)):
-			return Vector(self.pos1, Point(self.pos1.x // vector, self.pos2.y // vector))
+			return Vector(self.pos1, Point(self.pos1.x // vector, self.pos2.y // vector), name=self.name)
 		elif isinstance(vector, Vector):
-			return Vector(self.pos1 // vector.pos1, self.pos2 // vector.pos2)
+			return Vector(self.pos1 // vector.pos1, self.pos2 // vector.pos2, name=self.name)
 
 	def __pow__(self, vector) -> 'Vector':
 		if isinstance(vector, (float, int)):
-			return Vector(self.pos1, Point(self.pos1.x ** vector, self.pos2.y ** vector))
+			return Vector(self.pos1, Point(self.pos1.x ** vector, self.pos2.y ** vector), name=self.name)
 		elif isinstance(vector, Vector):
-			return Vector(self.pos1 ** vector.pos1, self.pos2 ** vector.pos2)
+			return Vector(self.pos1 ** vector.pos1, self.pos2 ** vector.pos2, name=self.name)
 
 	def __str__(self):
 		if self.pos1 != 0:
@@ -735,10 +759,10 @@ class Angle:
 
 	@property
 	def vec1(self) -> Vector:
-		return Vector(self.midpos, self.pos1)
+		return Vector(self.midpos, self.pos1, name=f'{self.name}_vec1')
 	@property
 	def vec2(self) -> Vector:
-		return Vector(self.midpos, self.pos2)
+		return Vector(self.midpos, self.pos2, name=f'{self.name}_vec2')
 
 	@property
 	def cos(self) -> float:
@@ -762,7 +786,7 @@ class Angle:
 		
 	@property
 	def bisector(self) -> Ray:
-		return Ray(self.midpos, Point([ (self.pos1[i] + self.pos2[i])/2 for i in range(self.dimension) ]))
+		return Ray(self.midpos, Point([ (self.pos1[i] + self.pos2[i])/2 for i in range(self.dimension) ]), name=f'{self.name}_bisector')
 
 	@property
 	def dimension(self) -> int:
@@ -804,13 +828,13 @@ class Angle:
 
 
 class AffineSpace:
-	def __init__(self, origin: Union['Point', tuple, list], vectors: List['Vector'], name: str = 'Affine'):
+	def __init__(self, origin: Union['Point', tuple, list], vectors: List['Vector'], name: str = 'AffineSpace'):
 		if isinstance(origin, (tuple, list)):
 			origin = Point(origin)
 		self.origin = origin
 
 		if all([ isinstance(vector, (Point, tuple, list)) for vector in vectors ]):
-			vectors = [ Vector(origin, i).to_zero for i in vectors ]
+			vectors = [ Vector(origin, i, name=f'{self.name}_vector{i}').to_zero for i in range(len(vectors)) ]
 
 		if all([ isinstance(vector, Vector) for vector in vectors ]):
 			self.vectors = [ vector.to_vector.project_to(self.dimension) for vector in vectors ]
@@ -823,7 +847,7 @@ class AffineSpace:
 			point = Point(*point)
 
 		basis_matrix = np.array([vec.pos2.axes + [0] * (self.dimension-vec.pos2.dimension) for vec in self.vectors])
-		return Point(self.origin.axes + np.dot(basis_matrix.T, point.axes))
+		return Point(self.origin.axes + np.dot(basis_matrix.T, point.axes), f'{self.name}_point')
 
 	@property
 	def dimension(self) -> int:

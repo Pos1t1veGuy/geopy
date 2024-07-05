@@ -1,5 +1,6 @@
 from .primitives import *
 from .shapes import *
+from .NDshapes import *
 from .scene import *
 
 max_dimension_for_names = 100
