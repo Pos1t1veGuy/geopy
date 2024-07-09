@@ -3,12 +3,17 @@ from typing import *
 from typing import *
 from math import sqrt, acos, degrees, tan, radians
 from string import ascii_lowercase as ABCD
+from scipy.linalg import null_space
+
 import random as r
 import numpy as np
 
 from .math import *
 
 # Here is geometry primitives: Point, Line, Ray, Segment, Vector and Angle classes
+
+class Shape:
+	...
 
 def line_by_function(func: str, name: str = 'Line') -> 'Line':
 	return Line(Point(1.0, func(1)), Point(2.0, func(2)), name=name)
@@ -147,7 +152,7 @@ class Point(Primitive, metaclass=PointMeta):
 			max_dimension = max( len(self.axes), len(obj.axes) )
 			return self.axes.as_list(length=max_dimension) == obj.axes.as_list(length=max_dimension)
 		else:
-			return self == obj
+			return list(self.axes) == obj
 
 	def __add__(self, object: Union[int, float]) -> 'Point':
 		if isinstance(object, (int, float)):
@@ -596,7 +601,7 @@ class Ray(Line):
 
 class VectorMeta(type):
 	def __getitem__(cls, pos):
-		return cls([0,0], pos)
+		return cls([0] * len(pos), pos)
 class Vector(Segment, metaclass=VectorMeta):
 	def __init__(self, *args, name="Vector", **kwargs):
 		super().__init__(*args, name=name, **kwargs)
@@ -702,37 +707,46 @@ class Vector(Segment, metaclass=VectorMeta):
 		if isinstance(vector, (float, int)):
 			return Vector(self.pos1, Point(self.pos1.x + vector, self.pos2.y + vector), name=self.name)
 		elif isinstance(vector, Vector):
-			return Vector(self.pos1 + vector.pos1, self.pos2 + vector.pos2, name=self.name)
+			return Vector(self.pos1, vector.pos2, name=self.name)
 
 	def __sub__(self, vector) -> 'Vector':
 		if isinstance(vector, (float, int)):
 			return Vector(self.pos1, Point(self.pos1.x - vector, self.pos2.y - vector), name=self.name)
 		elif isinstance(vector, Vector):
-			return Vector(self.pos1 * vector.pos1, self.pos2 * vector.pos2, name=self.name)
+			return self + (-vector)
 
 	def __mul__(self, vector):
 		if isinstance(vector, (float, int)):
-			return Vector(self.pos1, Point([ (self.pos2[i] - self.pos1[i]) * vector for i in range(self.dimension) ]), name=self.name) # self.pos1[i] * 
+			return Vector(self.pos1, Point([ self.pos1[i] + (self.pos2[i] - self.pos1[i]) * vector for i in range(self.dimension) ]), name=self.name)
 		elif isinstance(vector, Vector):
-			return Vector(self.pos1 * vector.pos1, self.pos2 * vector.pos2, name=self.name)
+			if self.dimension == 2 and vector.dimension == 2:
+				return Vector([0,0], self.pos2[0] * vector.pos2[1] - self.pos2[1] * vector.pos2[0], name=self.name)
+			elif self.dimension == 3 and vector.dimension == 3:
+				x = self.pos2[1] * vector.pos2[2] - self.pos2[2] * vector.pos2[1]
+				y = self.pos2[2] * vector.pos2[0] - self.pos2[0] * vector.pos2[2]
+				z = self.pos2[0] * vector.pos2[1] - self.pos2[1] * vector.pos2[0]
+				return Vector([0, 0, 0], [x, y, z], name=self.name)
 
 	def __truediv__(self, vector) -> 'Vector':
 		if isinstance(vector, (float, int)):
 			return Vector(self.pos1, Point(self.pos1.x / vector, self.pos2.y / vector), name=self.name)
 		elif isinstance(vector, Vector):
-			return Vector(self.pos1 / vector.pos1, self.pos2 / vector.pos2, name=self.name)
+			dim = max(self.dimension, vector.dimension)
+			return Vector([0] * dim, self.pos1 + [ self.pos2[i] / vector.pos2[i] for i in range(dim) ], name=self.name)
 
 	def __floordiv__(self, vector) -> 'Vector':
 		if isinstance(vector, (float, int)):
 			return Vector(self.pos1, Point(self.pos1.x // vector, self.pos2.y // vector), name=self.name)
 		elif isinstance(vector, Vector):
-			return Vector(self.pos1 // vector.pos1, self.pos2 // vector.pos2, name=self.name)
+			dim = max(self.dimension, vector.dimension)
+			return Vector([0] * dim, self.pos1 + [ self.pos2[i] // vector.pos2[i] for i in range(dim) ], name=self.name)
 
 	def __pow__(self, vector) -> 'Vector':
 		if isinstance(vector, (float, int)):
 			return Vector(self.pos1, Point(self.pos1.x ** vector, self.pos2.y ** vector), name=self.name)
 		elif isinstance(vector, Vector):
-			return Vector(self.pos1 ** vector.pos1, self.pos2 ** vector.pos2, name=self.name)
+			dim = max(self.dimension, vector.dimension)
+			return Vector([0] * dim, self.pos1 + [ self.pos2[i] ** vector.pos2[i] for i in range(dim) ], name=self.name)
 
 	def __str__(self):
 		if self.pos1 != 0:
@@ -835,7 +849,7 @@ class AffineSpace:
 		self.origin = origin
 
 		if all([ isinstance(vector, (Point, tuple, list)) for vector in vectors ]):
-			vectors = [ Vector(origin, i, name=f'{self.name}_vector{i}').to_zero for i in range(len(vectors)) ]
+			vectors = [ Vector(origin, vector, name=f'{name}_vector{i}').to_zero for i, vector in enumerate(vectors) ]
 
 		if all([ isinstance(vector, Vector) for vector in vectors ]):
 			self.vectors = [ vector.to_vector for vector in vectors ]
@@ -843,7 +857,7 @@ class AffineSpace:
 		else:
 			raise ValueError(f'"vectors" elements must be list of points or vectors, not {vectors}')
 
-	def transform(self, point: Union[Point, list, tuple]) -> Point:
+	def transform(self, point: Union['Point', list, tuple]) -> 'Point':
 		if isinstance(point, (list, tuple)):
 			point = Point(*point)
 
@@ -853,6 +867,10 @@ class AffineSpace:
 	@property
 	def dimension(self) -> int:
 		return len(self.vectors)
+
+	@property
+	def as_geometry(self) -> str:
+		return f'{self.vector} * (x - {self.origin})'
 
 	def __str__(self):
 		return f"{self.name}[{self.origin}, {self.dimension}D]"

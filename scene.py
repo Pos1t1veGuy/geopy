@@ -6,7 +6,8 @@ from matplotlib.patches import Polygon as MPLPolygon, Ellipse as MPLEllipse
 from matplotlib.lines import Line2D
 
 from .primitives import *
-from .shapes import *
+from .shapes2d import *
+from .shapes3d import *
 
 
 class Scene:
@@ -21,77 +22,52 @@ class Scene2D(Scene):
 			self.add(object)
 
 	def add(self, object: Union[Shape, Primitive, Point]):
-		if object.dimension == 2:
-			if isinstance(object, Point):
-				self.add_point(object)
-			elif isinstance(object, Vector):
-				self.add_vector(object)
-			elif isinstance(object, Segment):
-				self.add_segment(object)
-			elif isinstance(object, Ray):
-				self.add_ray(object)
-			elif isinstance(object, Line):
-				self.add_line(object)
-			elif isinstance(object, Polygon2D):
-				self.add_polygon(object)
-			elif isinstance(object, Circle):
-				self.add_circle(object)
-			elif isinstance(object, Composite):
-				for shape in object.shapes:
-					self.add(shape)
-			elif isinstance(object, PrimitiveGroup):
-				for pr in object.primitives:
-					self.add(pr)
-			else:
-				raise ValueError(f'Unexpected type {type(object)}. Object must be Shape/Primitive/Point')
+		if isinstance(object, Point):
+			self.add_point(object)
+		elif isinstance(object, Vector):
+			self.add_vector(object)
+		elif isinstance(object, Segment):
+			self.add_segment(object)
+		elif isinstance(object, Ray):
+			self.add_ray(object)
+		elif isinstance(object, Line):
+			self.add_line(object)
+		elif isinstance(object, Polygon):
+			self.add_polygon(object)
+		elif isinstance(object, Circle):
+			self.add_circle(object)
+		elif isinstance(object, Composite):
+			for shape in object.shapes:
+				self.add(shape)
+		elif isinstance(object, PrimitiveGroup):
+			for pr in object.primitives:
+				self.add(pr)
 		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 2D')
+			raise ValueError(f'Unexpected type {type(object)}. Object must be Shape/Primitive/Point')
 
 	def add_circle(self, circle: Circle):
-		if circle.dimension == 2:
-			self.ax.add_patch( MPLEllipse(xy=circle.center, width=circle.diameter, height=circle.diameter, edgecolor='r', fc='None') )
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 2D')
+		self.ax.add_patch( MPLEllipse(xy=circle.center.axes[:2], width=circle.diameter, height=circle.diameter, edgecolor='r', fc='None') )
 
-	def add_polygon(self, polygon: Polygon2D):
-		if polygon.dimension == 2:
-			vertices = [(point.x, point.y) for point in polygon.vertices]
-			polygon = MPLPolygon(vertices, edgecolor='b', fc='None')
-			self.ax.add_patch(polygon)
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 2D')
+	def add_polygon(self, polygon: Polygon):
+		polygon = MPLPolygon([(point.x, point.y) for point in polygon.vertices], edgecolor='b', fc='None')
+		self.ax.add_patch(polygon)
 
 	def add_segment(self, segment: Segment):
-		if segment.dimension == 2:
-			self.ax.add_line(Line2D([segment.pos1.x, segment.pos2.x], [segment.pos1.y, segment.pos2.y], linestyle='--', color='g', marker='.'))
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 2D')
+		self.ax.add_line(Line2D([segment.pos1.x, segment.pos2.x], [segment.pos1.y, segment.pos2.y], linestyle='--', color='g', marker='.'))
 
 	def add_ray(self, ray: Ray):
-		if ray.dimension == 2:
-			self.ax.add_line(Line2D([ray.pos1.x, ray.pos2.x], [ray.pos1.y, ray.pos2.y], color='r', marker='.', markevery=[0], linewidth=2))
-			self.ax.annotate('', xy=(ray.pos2.x, ray.pos2.y), xytext=(ray.pos1.x, ray.pos1.y), arrowprops=dict(arrowstyle='->', color='r'))
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 2D')
+		self.ax.add_line(Line2D([ray.pos1.x, ray.pos2.x], [ray.pos1.y, ray.pos2.y], color='r', marker='.', markevery=[0], linewidth=2))
+		self.ax.annotate('', xy=(ray.pos2.x, ray.pos2.y), xytext=(ray.pos1.x, ray.pos1.y), arrowprops=dict(arrowstyle='->', color='r'))
 
 	def add_vector(self, vector: Vector):
-		if vector.dimension == 2:
-			self.ax.add_line(Line2D([vector.pos1.x, vector.pos2.x], [vector.pos1.y, vector.pos2.y], color='c', marker='.', linewidth=2))
-			self.ax.annotate('', xy=(vector.pos2.x, vector.pos2.y), xytext=(vector.pos1.x, vector.pos1.y), arrowprops=dict(arrowstyle='->', color='c'))
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 2D')
+		self.ax.add_line(Line2D([vector.pos1.x, vector.pos2.x], [vector.pos1.y, vector.pos2.y], color='c', marker='.', linewidth=2))
+		self.ax.annotate('', xy=(vector.pos2.x, vector.pos2.y), xytext=(vector.pos1.x, vector.pos1.y), arrowprops=dict(arrowstyle='->', color='c'))
 
 	def add_line(self, line: Line):
-		if line.dimension == 2:
-			self.ax.add_line(Line2D([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], color='y'))
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 2D')
+		self.ax.add_line(Line2D([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], color='y'))
 
 	def add_point(self, point: Point):
-		if point.dimension == 2:
-			self.ax.scatter(point.x, point.y, color='m', marker='o')
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 2D')
+		self.ax.scatter(point.x, point.y, color='m', marker='o')
 
 	def show(self):
 		self.ax.axis('equal')
@@ -105,57 +81,56 @@ class Scene3D(Scene):
 		for object in args:
 			self.add(object)
 
-	def add(self, object: Union[Vector, Point]):
-		if object.dimension == 3:
-			if isinstance(object, Point):
-				self.add_point(object)
-			elif isinstance(object, Vector):
-				self.add_vector(object)
-			elif isinstance(object, Segment):
-				self.add_segment(object)
-			elif isinstance(object, Ray):
-				self.add_ray(object)
-			elif isinstance(object, Line):
-				self.add_line(object)
-			else:
-				raise ValueError(f'Unexpected type {type(object)}. Object must be Vector/Point')
+	def add(self, object: Union[Shape, Primitive, Point]):
+		if isinstance(object, Point):
+			self.add_point(object)
+		elif isinstance(object, Vector):
+			self.add_vector(object)
+		elif isinstance(object, Segment):
+			self.add_segment(object)
+		elif isinstance(object, Ray):
+			self.add_ray(object)
+		elif isinstance(object, Line):
+			self.add_line(object)
+		elif isinstance(object, Polygon):
+			self.add_polygon(object)
+		elif isinstance(object, Circle):
+			self.add_circle(object)
+		elif isinstance(object, Composite):
+			for shape in object.shapes:
+				self.add(shape)
+		elif isinstance(object, PrimitiveGroup):
+			for pr in object.primitives:
+				self.add(pr)
 		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 3D')
+			raise ValueError(f'Unexpected type {type(object)}. Object must be Shape/Primitive/Point')
 
 	def add_point(self, point: Point):
-		if point.dimension == 3:
-			self.ax.scatter(point.x, point.y, point.z, color='m', marker='o')
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 3D')
+		self.ax.scatter(point.x, point.y, point.z, color='m', marker='o')
 
 	def add_vector(self, vector: Vector):
-		if vector.dimension == 3:
-			self.ax.quiver(vector.pos1.x, vector.pos1.y, vector.pos1.z,
-			vector.pos2.x - vector.pos1.x, vector.pos2.y - vector.pos1.y, vector.pos2.z - vector.pos1.z,
-			color='c')
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 3D')
+		self.ax.quiver(vector.pos1.x, vector.pos1.y, vector.pos1.z,
+		vector.pos2.x - vector.pos1.x, vector.pos2.y - vector.pos1.y, vector.pos2.z - vector.pos1.z,
+		color='c')
 
 	def add_segment(self, segment: Segment):
-		if segment.dimension == 3:
-			self.ax.plot([segment.pos1.x, segment.pos2.x], [segment.pos1.y, segment.pos2.y], [segment.pos1.z, segment.pos2.z], linestyle='--', color='g', marker='.')
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 3D')
-
+		self.ax.plot([segment.pos1.x, segment.pos2.x], [segment.pos1.y, segment.pos2.y], [segment.pos1.z, segment.pos2.z], linestyle='--', color='g', marker='.')
+		
 	def add_ray(self, ray: Ray):
-		if ray.dimension == 3:
-			self.ax.plot([ray.pos1.x, ray.pos2.x], [ray.pos1.y, ray.pos2.y], [ray.pos1.z, ray.pos2.z], color='r', marker='.', markevery=[0], linewidth=2)
-			self.ax.quiver(ray.pos1.x, ray.pos1.y, ray.pos1.z,
-			ray.pos2.x - ray.pos1.x, ray.pos2.y - ray.pos1.y, ray.pos2.z - ray.pos1.z,
-			color='r', arrow_length_ratio=0.1)
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 3D')
+		self.ax.plot([ray.pos1.x, ray.pos2.x], [ray.pos1.y, ray.pos2.y], [ray.pos1.z, ray.pos2.z], color='r', marker='.', markevery=[0], linewidth=2)
+		self.ax.quiver(ray.pos1.x, ray.pos1.y, ray.pos1.z,
+		ray.pos2.x - ray.pos1.x, ray.pos2.y - ray.pos1.y, ray.pos2.z - ray.pos1.z,
+		color='r', arrow_length_ratio=0.1)
 
 	def add_line(self, line: Line):
-		if line.dimension == 3:
-			self.ax.plot([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], [line.pos1.z, line.pos2.z], color='y')
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 3D')
+		self.ax.plot([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], [line.pos1.z, line.pos2.z], color='y')
+
+	def add_circle(self, circle: Circle):
+		self.ax.add_patch( MPLEllipse(xy=circle.center.axes[:3], width=circle.diameter, height=circle.diameter, edgecolor='r', fc='None') )
+
+	def add_polygon(self, polygon: Polygon):
+		polygon = MPLPolygon([(point.x, point.y, point.z) for point in polygon.vertices], edgecolor='b', fc='None')
+		self.ax.add_patch(polygon)
 
 	def show(self):
 		self.ax.set_xlabel('X')
@@ -173,43 +148,31 @@ class Scene4D:
 			self.add(object)
 
 	def add(self, object: Union[Vector, Point]):
-		if object.dimension == 4:
-			if isinstance(object, Point):
-				self.add_point(object)
-			elif isinstance(object, Vector):
-				self.add_vector(object)
-			else:
-				raise ValueError(f'Unexpected type {type(object)}. Object must be Vector/Point')
+		if isinstance(object, Point):
+			self.add_point(object)
+		elif isinstance(object, Vector):
+			self.add_vector(object)
 		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 4D')
+			raise ValueError(f'Unexpected type {type(object)}. Object must be Vector/Point')
 
 	def add_point(self, point: Point):
-		if point.dimension == 4:
-			color = self.colors(point.coords[3] / 10)  # normalize the 4th coordinate
-			self.ax.scatter(point.x, point.y, point.z, color=color, marker='o')
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 4D')
+		color = self.colors(point.coords[3] / 10)  # normalize the 4th coordinate
+		self.ax.scatter(point.x, point.y, point.z, color=color, marker='o')
 
 	def add_point(self, point: Point):
-		if point.dimension == 4:
-			color = self.colors(point.a / 10)  # normalize the 4th coordinate
-			self.ax.scatter(point.x, point.y, point.z, color=color, marker='o')
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 4D')
+		color = self.colors(point.a / 10)  # normalize the 4th coordinate
+		self.ax.scatter(point.x, point.y, point.z, color=color, marker='o')
 
 	def add_vector(self, vector: Vector):
-		if vector.dimension == 4:
-			color_start = self.colors(vector.pos1.a / 10)  # normalize the 4th coordinate for pos1
-			color_end = self.colors(vector.pos2.a / 10)  # normalize the 4th coordinate for pos2
+		color_start = self.colors(vector.pos1.a / 10)  # normalize the 4th coordinate for pos1
+		color_end = self.colors(vector.pos2.a / 10)  # normalize the 4th coordinate for pos2
 
-			self.ax.quiver(vector.pos1.x, vector.pos1.y, vector.pos1.z,
-				vector.pos2.x - vector.pos1.x, vector.pos2.y - vector.pos1.y, vector.pos2.z - vector.pos1.z,
-				color=color_start)
-			self.ax.quiver(vector.pos2.x, vector.pos2.y, vector.pos2.z,
-				vector.pos1.x - vector.pos2.x, vector.pos1.y - vector.pos2.y, vector.pos1.z - vector.pos2.z,
-				color=color_end)
-		else:
-			raise ValueError(f'Unexpected dimension {object.dimension}. Object must be 4D')
+		self.ax.quiver(vector.pos1.x, vector.pos1.y, vector.pos1.z,
+			vector.pos2.x - vector.pos1.x, vector.pos2.y - vector.pos1.y, vector.pos2.z - vector.pos1.z,
+			color=color_start)
+		self.ax.quiver(vector.pos2.x, vector.pos2.y, vector.pos2.z,
+			vector.pos1.x - vector.pos2.x, vector.pos1.y - vector.pos2.y, vector.pos1.z - vector.pos2.z,
+			color=color_end)
 
 	def show(self):
 		self.ax.set_xlabel('X')
