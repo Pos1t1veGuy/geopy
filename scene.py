@@ -236,7 +236,12 @@ class Composite(Shape):
 					for point in res:
 						points.append(point)
 
-		return list(set(points))
+		res = []
+		for point in points:
+			if not point in res:
+				res.append(point)
+
+		return res
 
 	@property
 	def center_of_mass(self) -> float:
@@ -305,7 +310,12 @@ class PrimitiveGroup:
 					for point in res:
 						points.append(point)
 
-		return list(set(points))
+		res = []
+		for point in points:
+			if not point in res:
+				res.append(point)
+
+		return res
 	
 	def __contains__(self, object):
 		return self.intersects(object)

@@ -52,7 +52,7 @@ class Polygon(Shape2D):
 
 			vertices = eq_len_axeslists(self.vertices[i-1].axes, vertice.axes)
 			dimension = len(vertices[0])
-			if dimension != 2:
+			if dimension <= 2:
 				self.segments.append( segment_object(vertices[0], vertices[1], name=f'{self.name}_segment{i}' if vertice.name == 'Point' else vertice.name) )
 			else:
 				raise ValueError(f'{self.__class__.__name__} supports only 2D primitives')
@@ -296,6 +296,22 @@ class Polygon(Shape2D):
 	@property
 	def perimeter(self) -> float:
 		return sum([segment.length for segment in self.segments])
+
+	@property
+	def convex(self) -> bool:
+		for segment in self.segments:
+			s_inters = len([ segment.intersects(s) for s in self.segments if s != segment ])
+			if s_inters <= 2:
+				line = segment.to_line
+				l_inters = len([
+					line.intersects(s) for s in self.segments if s != segment and not (line.intersects(s.pos1) and line.intersects(s.pos2))
+				])
+				if l_inters > s_inters:
+					return False
+			else:
+				return False
+
+		return True
 
 	@property
 	def as_tk_polygon(self) -> List[float]:

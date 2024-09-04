@@ -324,6 +324,8 @@ class Line(Primitive):
 			elif isinstance(object, Line):
 				return [Point(np.array(self.pos1.axes) + t * np.array(self.vector.pos2.axes), name=f'{self.name}_{object.name}_intersection')]
 
+			return []
+
 		elif hasattr(object, 'intersects') and not isinstance(object, Primitive):
 			return object.intersects(self)
 
