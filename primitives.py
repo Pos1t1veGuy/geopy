@@ -287,31 +287,40 @@ class Line(Primitive):
 
 			# Point intersection with vector
 			t_values = (np.array(p2) - np.array(p1)) / np.array(d)
+			# if t values is equal point is on line
 			return [object.copy()] if np.all(t_values == t_values[0]) else []
 
 		elif isinstance(object, (Ray, Vector, Segment, Line)):
-			coefficients = np.zeros((self.dimension, 2))
-			constants = np.zeros(self.dimension)
+			# Lists with different lengths now has equal length due to completing a smaller list with zeros
+			vec1, vec2, p1, p2 = map(np.array, eq_len_axeslists(self.vector.pos2.axes, object.vector.pos2.axes, self.pos1.axes, object.pos1.axes))
+			directions = np.stack([ vec1, -vec2 ], axis=1)
+			free_vec = p2 - p1
 
-			for i in range(self.dimension):
-				coefficients[i] = np.array([self.vector.pos2[i], -object.vector.pos2[i]])
-				constants[i] = np.array(object.pos1[i] - self.pos1[i])
+			if self.is_parallel(object):
+				print(1)
+				if object.pos1 in self and object.pos2 in self:
+					return [Line(self.pos1, object.pos2, name=f'{self.name}_{object.name}_intersection')]
+				else:
+					[]
+
+			# rank check
+			if np.linalg.matrix_rank(directions) < np.linalg.matrix_rank(np.column_stack((directions, free_vec))):
+				return []
 
 			try:
-				solution = np.linalg.lstsq(coefficients, constants, rcond=None)[0]
+				t, s = np.linalg.solve(directions, free_vec)  # Solution for parameters for equation "line1_point + line1_vector * t = line2_point + line2_vector * s"
+				solution = p1 + t * vec1
 			except np.linalg.LinAlgError:
-				raise ValueError(f"Can not find intersection of {self} and {object}")
-
-			t, s = solution
+				return []
 
 			if isinstance(object, (Segment, Vector)):
 				if 0 <= s <= 1:
-					return [Point(np.array(self.pos1.axes) + t * np.array(self.vector.pos2.axes), name=f'{self.name}_{object.name}_intersection')]
+					return [Point(solution, name=f'{self.name}_{object.name}_intersection')]
 			elif isinstance(object, Ray):
 				if s >= 0:
-					return [Point(np.array(self.pos1.axes) + t * np.array(self.vector.pos2.axes), name=f'{self.name}_{object.name}_intersection')]
+					return [Point(solution, name=f'{self.name}_{object.name}_intersection')]
 			elif isinstance(object, Line):
-				return [Point(np.array(self.pos1.axes) + t * np.array(self.vector.pos2.axes), name=f'{self.name}_{object.name}_intersection')]
+				return [Point(solution, name=f'{self.name}_{object.name}_intersection')]
 
 			return []
 
@@ -675,7 +684,7 @@ class Vector(Segment, metaclass=VectorMeta):
 			vector = Vector[vector]
 		elif isinstance(vector, (Segment, Line, Ray)):
 			vector = vector.vector
-		return self.compare_directions(vector) or self.compare_directions(-vector)
+		return self.k == vector.k and vector.direction == self.direction
 
 	@property
 	def vector(self):

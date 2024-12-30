@@ -74,6 +74,7 @@ class Polygon(Shape2D):
 			for segment in self.segments:
 				if object in segment:
 					for point in object.intersects(segment):
+						print(point, segment)
 						points.append(point)
 			if points:
 				return points
