@@ -19,7 +19,7 @@ def circle_by_points(pos1: Point, pos2: Point) -> 'Circle':
 
 
 class Polygon(Shape2D):
-	def __init__(self, *args: List[[ Point, Point, ... ]], name: str = 'Polygon', pos: Point = None, segment_object = Segment):
+	def __init__(self, *args: List[[ Point, Point, ... ]], name: str = 'Polygon', pos: Point = None, segment_object = Segment, multidimension: bool = False):
 		if len(args) < 3:
 			raise ValueError(f'Length of points list at constructor must be >2, not {len(args)}')
 
@@ -36,6 +36,7 @@ class Polygon(Shape2D):
 		self.segments = []
 		self.angles = []
 		self.name = name
+		self.multidimension = multidimension
 
 		self._setup(segment_object)
 
@@ -51,11 +52,11 @@ class Polygon(Shape2D):
 				self.vertices[i-1] = Point(*self.vertices[i-1])
 
 			vertices = eq_len_axeslists(self.vertices[i-1].axes, vertice.axes)
-			dimension = len(vertices[0])
-			if dimension <= 2:
+			dimension = max([ Point[i].dimension for i in vertices ])
+			if dimension <= 2 or self.multidimension:
 				self.segments.append( segment_object(vertices[0], vertices[1], name=f'{self.name}_segment{i}' if vertice.name == 'Point' else vertice.name) )
 			else:
-				raise ValueError(f'{self.__class__.__name__} supports only 2D primitives')
+				raise ValueError(f'{self.__class__.__name__} supports primitives with only 3< true dimension')
 
 		for i, vertice in enumerate(self.vertices):
 			self.angles.append( Angle(self.vertices[i-2], self.vertices[i-1], vertice, name=f'{self.name}_angle{i}' if vertice.name == 'Point' else vertice.name) )
@@ -74,7 +75,6 @@ class Polygon(Shape2D):
 			for segment in self.segments:
 				if object in segment:
 					for point in object.intersects(segment):
-						print(point, segment)
 						points.append(point)
 			if points:
 				return points
@@ -86,6 +86,8 @@ class Polygon(Shape2D):
 				if object in segment:
 					for point in object.intersects(segment):
 						points.append(point)
+
+			return points
 			# Ray and Line can not be inside polygon and do not intersect it, so it will not be checked in self.inside
 
 		elif isinstance(object, Polygon):
@@ -134,19 +136,37 @@ class Polygon(Shape2D):
 		else:
 			raise ValueError(f'"inside" method takes Union[Primitive, Shape, Point, tuple, list], not {object}')
 
-		rays = {
-			Ray(point, point + [0, 1]): [],
-			Ray(point, point + [0, -1]): [],
-			Ray(point, point + [-1, 0]): [],
-			Ray(point, point + [1, 0]): [],
-		} # {up:0, down:0, right:0, left:0}
+		ios = []
+		ray = Ray(point, point + [0, 1])
 		for segment in self.segments:
-			for ray in rays.keys():
-				if ray in segment:
-					rays[ray].append(segment.intersects(ray))
+			if ray in segment:
+				ios.append(segment.intersects(ray)[0])
 
-		return all([ len(positions) % 2 != 0 and len(positions) != 0 for positions in rays.values() ])
-		# if every ray from "rays" dict has intersection count that % 2 == 0 and != 0 then point inside
+		return len(ios) % 2 != 0 and len(ios) != 0
+		# if ray intersection count that % 2 == 0 and != 0 then point inside
+
+	def intersection_area(self, object: Union[Primitive, Shape2D, Point, tuple, list]) -> 'Polygon':
+		intersections = self.intersects(object)
+
+		if intersections:
+			for point in self.vertices:
+				if point in object and not point in intersections:
+					intersections.append(point)
+			for point in object.vertices:
+				if point in self and not point in intersections:
+					intersections.append(point)
+
+			return Polygon(*intersections, name=f'{self.name}_{object.name}_intersection', multidimension=True)
+
+		elif self.inside(object):
+			return object
+
+		elif isinstance(object, Polygon):
+			if object.inside(self):
+				return self
+
+	def enable_multidimension(self):
+		self.multidimension = True
 
 	def scale(self, factor: float, center: Point = None) -> 'Polygon':
 		if not center:
@@ -158,7 +178,8 @@ class Polygon(Shape2D):
 		for vertice in self.vertices:
 			new_vertices.append( Point(center.x + factor * (vertice.x - center.x), center.y + factor * (vertice.y - center.y)) )
 
-		return self.__class__(*new_vertices, name=self.name, pos=Point(center.x + factor * (self.pos.x - center.x), center.y + factor * (self.pos.y - center.y)))
+		pos = Point(center.x + factor * (self.pos.x - center.x), center.y + factor * (self.pos.y - center.y))
+		return Polygon(*new_vertices, name=self.name, pos=pos, segment_object = Segment, multidimension=multidimension)
 
 	def rotate(self, angle: Union[int, Angle], center: Point = None) -> 'Polygon':
 		if center is None:
@@ -181,7 +202,7 @@ class Polygon(Shape2D):
 				*vertice.axes[2:]
 			))
 
-		return self.__class__(*new_vertices, name=self.name, pos=self.pos)
+		return Polygon(*new_vertices, name=self.name, pos=self.pos, segment_object = Segment, multidimension=self.multidimension)
 
 	def segments_by_point(self, point: Point) -> List[Segment]:
 		if isinstance(point, (list,tuple)):
@@ -205,6 +226,15 @@ class Polygon(Shape2D):
 			point = Point(*point)
 		return [ vertice for vertice in self.vertices if point.pos == vertice.pos ][0]
 
+	def project_to(self, dimension: int) -> 'Polygon':
+		if dimension <= 1:
+			raise ValueError(f'{self.__class__.__name__} can be 2D+ object, not {dimension}D')
+		elif dimension >= 2:
+			if dimension >= self.dimension:
+				return self
+			else:
+				return self.__class__([point.project_to(dimension) for point in self.points], name=self.name, segment_object = Segment, pos=self.pos)
+
 	def view(self):
 		root = Tk()
 		root.title(f"{self.name} view")
@@ -217,20 +247,23 @@ class Polygon(Shape2D):
 
 		root.mainloop()
 
-	def at_pos(self, point: Union[Point, list, tuple]) -> 'Polygon':
+	def at_pos(self, point: Union[Point, list, tuple], multidimension: bool = True) -> 'Polygon':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
-		shift = Point([ point[i] - self.pos[i] for i in range(self.dimension) ])
-		return self.__class__(*[vertex + shift for vertex in self.vertices], name=self.name, pos=self.pos + point)
+		shift = Point([ point[i] - self.pos[i] for i in range(point.dimension) ])
+		return self.__class__(*[vertex + shift for vertex in self.vertices], name=self.name, pos=self.pos + point, segment_object = Segment, multidimension=multidimension)
 
-	def to_pos(self, point: Union[Point, list, tuple]):
+	def to_pos(self, point: Union[Point, list, tuple], multidimension: bool = True):
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
 
+		last_miltidimension_setup = self.multidimension
+		self.multidimension = multidimension
 		shift = Point(point.x - self.pos.x, point.y - self.pos.y)
 		self.pos = point
 		self.vertices = [vertex + shift for vertex in self.vertices]
 		self._setup(self.segments[0].__class__)
+		self.multidimension = last_miltidimension_setup
 
 	def distane_to(object: Union[Primitive, Shape, Point, tuple, list]) -> Segment:
 		if isinstance(object, (tuple, list)):
@@ -273,6 +306,10 @@ class Polygon(Shape2D):
 		return Space(self.center_of_mass, self.box.vertices[:2], name=f'{self.name}_space')
 
 	@property
+	def to_multidimension(self) -> 'Polygon':
+		return self.__class__(*self.vertices, name=self.name, pos=self.pos, multidimension=True, segment_object = Segment)
+
+	@property
 	def dimension(self) -> int:
 		return max([ vertice.dimension for vertice in self.vertices ])
 
@@ -287,7 +324,7 @@ class Polygon(Shape2D):
 	def center_of_mass(self) -> Point:
 		y = [ vertice.y for vertice in self.vertices ]
 		x = [ vertice.x for vertice in self.vertices ]
-		return Point(sum(x)/len(x), sum(y)/len(y), name=f'{self.name} center')
+		return Point(sum(x)/len(x), sum(y)/len(y), name=f'{self.name}_center')
 
 	@property
 	def area(self) -> float:
@@ -341,29 +378,29 @@ class Polygon(Shape2D):
 		if isinstance(self, Rectangle):
 			return self.copy()
 		else:
-			return Rectangle(self.min_pos, self.max_pos)
+			return Rectangle(self.min_pos, self.max_pos, multidimension=True)
 	
 	def __contains__(self, object):
 		return self.intersects(object, check_inside=True)
 
 	def __add__(self, point: Union[Point, list, tuple]) -> 'Polygon':
 		point = Point(point)
-		return self.__class__(*[ vertice + point for vertice in self.vertices ], name=self.name, pos=self.pos + point)
+		return self.__class__(*[ vertice + point for vertice in self.vertices ], name=self.name, pos=self.pos + point, segment_object = Segment, multidimension=multidimension)
 	def __sub__(self, point: Union[Point, list, tuple]) -> 'Polygon':
 		point = Point(point)
-		return self.__class__(*[ vertice - point for vertice in self.vertices ], name=self.name, pos=self.pos - point)
+		return self.__class__(*[ vertice - point for vertice in self.vertices ], name=self.name, pos=self.pos - point, segment_object = Segment, multidimension=multidimension)
 	def __mul__(self, point: Union[Point, list, tuple]) -> 'Polygon':
 		point = Point(point)
-		return self.__class__(*[ vertice * point for vertice in self.vertices ], name=self.name, pos=self.pos * point)
+		return self.__class__(*[ vertice * point for vertice in self.vertices ], name=self.name, pos=self.pos * point, segment_object = Segment, multidimension=multidimension)
 	def __truediv__(self, point: Union[Point, list, tuple]) -> 'Polygon':
 		point = Point(point)
-		return self.__class__(*[ vertice / point for vertice in self.vertices ], name=self.name, pos=self.pos / point)
+		return self.__class__(*[ vertice / point for vertice in self.vertices ], name=self.name, pos=self.pos / point, segment_object = Segment, multidimension=multidimension)
 	def __floordiv__(self, point: Union[Point, list, tuple]) -> 'Polygon':
 		point = Point(point)
-		return self.__class__(*[ vertice // point for vertice in self.vertices ], name=self.name, pos=self.pos // point)
+		return self.__class__(*[ vertice // point for vertice in self.vertices ], name=self.name, pos=self.pos // point, segment_object = Segment, multidimension=multidimension)
 	def __pow__(self, point: Union[Point, list, tuple]) -> 'Polygon':
 		point = Point(point)
-		return self.__class__(*[ vertice ** point for vertice in self.vertices ], name=self.name, pos=self.pos ** point)
+		return self.__class__(*[ vertice ** point for vertice in self.vertices ], name=self.name, pos=self.pos ** point, segment_object = Segment, multidimension=multidimension)
 
 	def __len__(self):
 		return int(self.perimeter)
@@ -373,21 +410,21 @@ class Polygon(Shape2D):
 		return f'{self.__class__.__name__}({self.vertices}, name="{self.name}", pos={self.pos})'
 
 class Rectangle(Polygon):
-	def __init__(self, pos1: Point, pos2: Point, name: str = 'Box', pos: Point = None):
+	def __init__(self, pos1: Point, pos2: Point, name: str = 'Box', pos: Point = None, segment_object = Segment, multidimension: bool = False):
 		if isinstance(pos1, (tuple, list)):
 			pos1 = Point(pos1)
 		if isinstance(pos2, (tuple, list)):
 			pos2 = Point(pos2)
 
-		super().__init__(pos1, Point(pos1.x, pos2.y), pos2, Point(pos2.x, pos1.y), name=name, pos=pos)
+		super().__init__(pos1, Point(pos1.x, pos2.y), pos2, Point(pos2.x, pos1.y), name=name, pos=pos, segment_object=segment_object, multidimension=multidimension)
 
 	@property
 	def circum_circle(self) -> 'Circle':
 		return Circle(self.center_of_mass, Segment(self.center_of_mass, self.vertices[0]).length)
 
 class Triangle(Polygon):
-	def __init__(self, pos1: Point, pos2: Point, pos3: Point, name: str = 'Triangle', pos: Point = None):
-		super().__init__(pos1, pos2, pos3, name=name, pos=pos)
+	def __init__(self, pos1: Point, pos2: Point, pos3: Point, name: str = 'Triangle', pos: Point = None, segment_object = Segment, multidimension: bool = False):
+		super().__init__(pos1, pos2, pos3, name=name, pos=pos, segment_object=segment_object, multidimension=multidimension)
 		self.side1, self.side2, self.side3 = self.segments
 
 	@property
@@ -435,7 +472,7 @@ class Triangle(Polygon):
 			return f'{self.angle_type} {self.side_type}'
 
 class Rhombus(Polygon):
-	def __init__(self, center: Point, diagonal_x: int, diagonal_y: int, name: str = 'Rhombus', pos: Point = None):
+	def __init__(self, center: Point, diagonal_x: int, diagonal_y: int, name: str = 'Rhombus', pos: Point = None, segment_object = Segment, multidimension: bool = False):
 		if isinstance(center, (tuple, list)):
 			center = Point(center)
 
@@ -451,11 +488,11 @@ class Rhombus(Polygon):
 			self.center - [diagonal_x/2, 0],
 			self.center - [0, diagonal_y/2],
 			self.center + [diagonal_x/2, 0],
-		name=name, pos=pos)
+		name=name, pos=pos, segment_object=segment_object, multidimension=multidimension)
 
 
 class Circle(Shape2D):
-	def __init__(self, center: 'Point', radius: int, name: str = 'Circle'):
+	def __init__(self, center: 'Point', radius: int, name: str = 'Circle', multidimension: bool = False):
 		if isinstance(center, (tuple, list)):
 			center = Point(*center)
 
@@ -467,6 +504,7 @@ class Circle(Shape2D):
 		self.radius = radius
 		self.center = center
 		self.name = name
+		self.multidimension = multidimension
 
 	def intersects(self, object: Union[Primitive, Shape, 'Point', tuple, list], check_inside: bool = True) -> List['Point']:
 		if isinstance(object, (tuple, list)):
@@ -542,12 +580,16 @@ class Circle(Shape2D):
 
 	def at_pos(self, position: List[[int, int]]) -> 'Circle':
 		if self.center != position:
-			return Circle(position, self.radius, name=self.name)
+			if not self.multidimension:
+				position = position[:2]
+			return Circle(position, self.radius, name=self.name, multidimension=multidimension)
 		return self.copy()
 
 	def to_pos(self, position: List[[int, int]]):
 		if isinstance(position, (tuple, list)):
 			position = Point(*object)
+		if not self.multidimension:
+			position = position[:2]
 
 		if self.center != position:
 			self.center = position
@@ -571,7 +613,7 @@ class Circle(Shape2D):
 		return []
 
 	def scale(factor: float) -> 'Circle':
-		return self.__class__(self.pos, self.radius*factor, name=self.name)
+		return self.__class__(self.pos, self.radius*factor, name=self.name, multidimension=self.multidimension)
 
 	def view(self):
 		root = Tk()
@@ -648,27 +690,27 @@ class Circle(Shape2D):
 	def __add__(self, point: Union[Point, list, tuple]) -> 'Circle':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
-		return self.__class__(self.center + point, self.radius, name=self.name)
+		return self.__class__(self.center + point, self.radius, name=self.name, multidimension=self.multidimension)
 	def __sub__(self, point: Union[Point, list, tuple]) -> 'Circle':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
-		return self.__class__(self.center - point, self.radius, name=self.name)
+		return self.__class__(self.center - point, self.radius, name=self.name, multidimension=self.multidimension)
 	def __mul__(self, point: Union[Point, list, tuple]) -> 'Circle':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
-		return self.__class__(self.center * point, self.radius, name=self.name)
+		return self.__class__(self.center * point, self.radius, name=self.name, multidimension=self.multidimension)
 	def __truediv__(self, point: Union[Point, list, tuple]) -> 'Circle':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
-		return self.__class__(self.center / point, self.radius, name=self.name)
+		return self.__class__(self.center / point, self.radius, name=self.name, multidimension=self.multidimension)
 	def __floordiv__(self, point: Union[Point, list, tuple]) -> 'Circle':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
-		return self.__class__(self.center // point, self.radius, name=self.name)
+		return self.__class__(self.center // point, self.radius, name=self.name, multidimension=self.multidimension)
 	def __pow__(self, point: Union[Point, list, tuple]) -> 'Circle':
 		if isinstance(point, (list,tuple)):
 			point = Point(*point)
-		return self.__class__(self.center ** point, self.radius, name=self.name)
+		return self.__class__(self.center ** point, self.radius, name=self.name, multidimension=self.multidimension)
 
 	def __call__(self, x: float) -> float:
 		return self.y_from_x(x)

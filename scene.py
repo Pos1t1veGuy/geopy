@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 
 from typing import *
 from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib.patches import Polygon as MPLPolygon, Ellipse as MPLEllipse
 from matplotlib.lines import Line2D
 
@@ -134,13 +135,11 @@ class Scene3D(Scene):
 		self.ax.add_patch( MPLEllipse(xy=circle.center.axes[:3], width=circle.diameter, height=circle.diameter, edgecolor='r', fc='None') )
 
 	def add_polygon(self, polygon: Polygon):
-		polygon = MPLPolygon([(point.x, point.y, point.z) for point in polygon.vertices], edgecolor='b', fc='None')
-		self.ax.add_patch(polygon)
+		verts = [[ tuple([float(axis) for axis in point]) for point in eq_len_axeslists( *map(lambda point: point.axes, polygon.vertices), dimension=3 ) ]]
+		polygon = Poly3DCollection(verts, alpha=0.5, facecolor='cyan', edgecolor='r')
+		self.ax.add_collection3d(polygon)
 
 	def show(self):
-		self.ax.set_xlabel('X')
-		self.ax.set_ylabel('Y')
-		self.ax.set_zlabel('Z')
 		plt.show()
 
 class Scene4D:
