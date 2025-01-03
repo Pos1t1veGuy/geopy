@@ -4,9 +4,11 @@ from typing import *
 from math import sqrt, acos, degrees, tan, radians
 from string import ascii_lowercase as ABCD
 
+import traceback
 import random as r
 import numpy as np
 from itertools import combinations
+import pdb
 
 from .math import *
 
@@ -53,8 +55,9 @@ class PointMeta(type):
 		else:
 			return cls(pos)
 class Point(Primitive, metaclass=PointMeta):
-	def __init__(self, *args, name: str = 'Point'):
+	def __init__(self, *args, name: str = 'Point', color: str = 'm'):
 		self.axes = AxesList([])
+		self.color = color
 
 		if len(args) == 1 and isinstance(args[0], (tuple, list, np.ndarray)):
 			args = args[0]
@@ -238,7 +241,7 @@ class Point(Primitive, metaclass=PointMeta):
 
 
 class Line(Primitive):
-	def __init__(self, pos1: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Line'):
+	def __init__(self, pos1: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Line', color: str = 'y'):
 		if isinstance(pos1, (tuple, list, np.ndarray)):
 			pos1 = Point(*pos1)
 		if isinstance(pos2, (tuple, list, np.ndarray)):
@@ -247,6 +250,7 @@ class Line(Primitive):
 		self.pos1, self.pos2 = reduse_axeslists(pos1.axes, pos2.axes)
 		self.pos1, self.pos2 = Point(self.pos1, name=pos1.name), Point(self.pos2, name=pos2.name)
 		self.name = name
+		self.color = color
 
 		if list(self.pos1.axes) == list(self.pos2.axes):
 			raise ValueError(f'Expected 2 different Points, got equal: {pos1}; {pos2}')
@@ -291,7 +295,10 @@ class Line(Primitive):
 			# Point intersection with vector
 			t_values = (np.array(p2) - np.array(p1)) / np.array(d)
 			# if t values is equal point is on line
-			return [object.copy()] if np.all(np.abs(t_values - t_values[0]) < EPSILON) else []
+			if np.all(np.abs(t_values - t_values[0]) < EPSILON):
+				return [object.pos]
+			else:
+				return []
 
 		elif isinstance(object, (Ray, Vector, Segment, Line)):
 			true_dim_indexes_1 = [i for i, (p1, p2) in enumerate(zip(self.pos1.axes, self.pos2.axes)) if p1 != p2]
@@ -330,13 +337,15 @@ class Line(Primitive):
 
 			elif self.true_dimension == 1 and object.true_dimension == 2:
 				# If first line has only 1 non zero axis but second has 2
-				x = self.pos1[true_dim_indexes_1[0]]
+				y = self.pos1[true_dim_indexes_2[1]]
 				second = Line(
 					Point[ object.pos1[true_dim_indexes_2[0]], object.pos1[true_dim_indexes_2[1]] ],
 					Point[ object.pos2[true_dim_indexes_2[0]], object.pos2[true_dim_indexes_2[1]] ],
 				)
-				point = Point(x, second.y_from_x(x), name=f'{self.name}_{object.name}_intersection')
-				return [point] if point in self and point in object else []
+				point = Point(second.x_from_y(y), y, name=f'{self.name}_{object.name}_intersection')
+				return [point] if point in object else []
+				# Here is must be "if point in self and point in object", I dont know why, self.intersects(point) returns None, that means NO INTERSECTION.
+				# Point intersection can be only empty list or List[Point], but this is NoneType. WHY?! I dont know. Maybe I am blind and don't see the reason
 
 			elif self.true_dimension == 2 and object.true_dimension == 1:
 				# Returns result from last IF statement by changing "self -> object" to "object -> self"
@@ -612,8 +621,9 @@ class Line(Primitive):
 		return f'{self.__class__.__name__}{self.dimension}D({self.pos1}, {self.pos2}, name="{self.name}")'
 
 class Segment(Line):
-	def __init__(self, pos1: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Segment'):
-		super().__init__(pos1, pos2, name=name)
+	def __init__(self, pos1: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Segment', color: str = 'g'):
+		self.color = color
+		super().__init__(pos1, pos2, name=name, color=color)
 
 	def intersects(self, object: Union[Primitive, Point, list, tuple]) -> Point:
 		if isinstance(object, (list, tuple, np.ndarray)):
@@ -658,8 +668,8 @@ class Segment(Line):
 		return Segment([1.0,func(1)], points[0], name=name)
 
 class Ray(Line):
-	def __init__(self, pos1: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Ray'):
-		super().__init__(pos1, pos2, name=name)
+	def __init__(self, pos1: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Ray', color: str = 'r'):
+		super().__init__(pos1, pos2, name=name, color=color)
 	
 	def intersects(self, object: Union[Primitive, Point, list, tuple]) -> Point:
 		if isinstance(object, (list, tuple, np.ndarray)):
@@ -737,8 +747,8 @@ class VectorMeta(type):
 	def __getitem__(cls, pos):
 		return cls([0] * len(pos), pos)
 class Vector(Segment, metaclass=VectorMeta):
-	def __init__(self, *args, name="Vector", **kwargs):
-		super().__init__(*args, name=name, **kwargs)
+	def __init__(self, *args, name: str = "Vector", color: str = 'c', **kwargs):
+		super().__init__(*args, name=name, color=color, **kwargs)
 
 	def dot(self, vector) -> float:
 		return sum([ vector.to_zero.pos2[i] * self.to_zero.pos2[i] for i in range(self.dimension) ])

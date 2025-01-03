@@ -75,12 +75,12 @@ class Parallelepiped(Shape3D):
 	@property
 	def edges(self) -> List['Polygon']:
 		return [
-			Polygon(self.vertices[0], self.vertices[1], self.vertices[3], self.vertices[2], name='Polygon0'),  # down
-			Polygon(self.vertices[4], self.vertices[5], self.vertices[7], self.vertices[6], name='Polygon1'),  # up
-			Polygon(self.vertices[0], self.vertices[1], self.vertices[5], self.vertices[4], name='Polygon2'),  # front
-			Polygon(self.vertices[2], self.vertices[3], self.vertices[7], self.vertices[6], name='Polygon3'),  # back
-			Polygon(self.vertices[0], self.vertices[2], self.vertices[6], self.vertices[4], name='Polygon4'),  # left
-			Polygon(self.vertices[1], self.vertices[3], self.vertices[7], self.vertices[5], name='Polygon5'),  # right
+			Polygon(self.vertices[0], self.vertices[1], self.vertices[3], self.vertices[2], name='Polygon0', multidimension=True),  # down
+			Polygon(self.vertices[4], self.vertices[5], self.vertices[7], self.vertices[6], name='Polygon1', multidimension=True),  # up
+			Polygon(self.vertices[0], self.vertices[1], self.vertices[5], self.vertices[4], name='Polygon2', multidimension=True),  # front
+			Polygon(self.vertices[2], self.vertices[3], self.vertices[7], self.vertices[6], name='Polygon3', multidimension=True),  # back
+			Polygon(self.vertices[0], self.vertices[2], self.vertices[6], self.vertices[4], name='Polygon4', multidimension=True),  # left
+			Polygon(self.vertices[1], self.vertices[3], self.vertices[7], self.vertices[5], name='Polygon5', multidimension=True),  # right
 		]
 
 	@property
@@ -137,6 +137,9 @@ Box = Parallelepiped
 class Tetrahedron(Shape3D):
 	def __init__(self, *args: Union['Point', list, tuple], name: str = 'Tetrahedron'):
 		self.vertices = []
+		if len(args) != 4:
+			raise ValueError(f'Tetrahedron must contain 4 vertices, not {len(args)}')
+
 		for vertice in args:
 			if isinstance(vertice, (list, tuple)):
 				vertice = Point(*vertice)
@@ -192,12 +195,13 @@ class Tetrahedron(Shape3D):
 
 	@property
 	def edges(self) -> List['Polygon']:
-		edges = []
-		for i, vertice in enumerate(self.vertices):
-			poly_vertices = self.vertices.copy()
-			vertices.remove(vertice)
-			edges.append(Polygon(poly_vertices, name=f'Polygon{i}'))
-		return edges
+		return [
+			Triangle(self.vertices[0], self.vertices[1], self.vertices[2], name='Polygon0', multidimension=True),
+			Triangle(self.vertices[0], self.vertices[1], self.vertices[3], name='Polygon1', multidimension=True),
+
+			Triangle(self.vertices[2], self.vertices[3], self.vertices[0], name='Polygon2', multidimension=True),
+			Triangle(self.vertices[2], self.vertices[3], self.vertices[1], name='Polygon3', multidimension=True),
+		]
 
 	@property
 	def segments(self) -> List['Segment']:

@@ -18,6 +18,9 @@ class Scene:
 class Scene2D(Scene):
 	def __init__(self, *args):
 		self.fig, self.ax = plt.subplots()
+		self.lines = []
+		self.rays = []
+		self.points = []
 
 		for object in args:
 			self.add(object)
@@ -49,33 +52,79 @@ class Scene2D(Scene):
 			raise ValueError(f'Unexpected type {type(object)}. Object must be Shape/Primitive/Point')
 
 	def add_circle(self, circle: Circle):
-		self.ax.add_patch( MPLEllipse(xy=(circle.center.x, circle.center.y), width=circle.diameter, height=circle.diameter, edgecolor='r', fc='None') )
+		self.points.append(circle.center)
+
+		self.points.append(circle.center - [circle.radius, 0])
+		self.points.append(circle.center + [circle.radius, 0])
+		self.points.append(circle.center - [0, circle.radius])
+		self.points.append(circle.center + [0, circle.radius])
+
+		self.ax.add_patch( MPLEllipse(xy=(circle.center.x, circle.center.y), width=circle.diameter, height=circle.diameter, edgecolor=circle.color, fc='None') )
 	
 	def add_oval(self, oval: Oval):
+		self.points.append(oval.center)
+
+		self.points.append(oval.center - [oval.radius_x, 0])
+		self.points.append(oval.center + [oval.radius_x, 0])
+		self.points.append(oval.center - [0, oval.radius_y])
+		self.points.append(oval.center + [0, oval.radius_y])
+		
 		self.ax.add_patch( MPLEllipse(xy=(oval.center.x, oval.center.y), width=oval.diameter_x, height=oval.diameter_y, edgecolor='r', fc='None') )
 
 	def add_polygon(self, polygon: Polygon):
-		polygon = MPLPolygon([(point.x, point.y) for point in polygon.vertices], edgecolor='b', fc='None')
+		for point in polygon.vertices:
+			self.points.append(point)
+
+		polygon = MPLPolygon([(point.x, point.y) for point in polygon.vertices], edgecolor=polygon.segments_color, facecolor=polygon.bg_color, alpha=polygon.alpha)
 		self.ax.add_patch(polygon)
 
 	def add_segment(self, segment: Segment):
-		self.ax.add_line(Line2D([segment.pos1.x, segment.pos2.x], [segment.pos1.y, segment.pos2.y], linestyle='--', color='g', marker='.'))
+		self.ax.add_line(Line2D([segment.pos1.x, segment.pos2.x], [segment.pos1.y, segment.pos2.y], linestyle='--', color=segment.color, marker='.'))
+		self.points.append(segment.pos1)
+		self.points.append(segment.pos2)
 
 	def add_ray(self, ray: Ray):
-		self.ax.add_line(Line2D([ray.pos1.x, ray.pos2.x], [ray.pos1.y, ray.pos2.y], color='r', marker='.', markevery=[0], linewidth=2))
-		self.ax.annotate('', xy=(ray.pos2.x, ray.pos2.y), xytext=(ray.pos1.x, ray.pos1.y), arrowprops=dict(arrowstyle='->', color='r'))
+		self.rays.append(ray)
+		self.points.append(ray.pos1)
 
 	def add_vector(self, vector: Vector):
-		self.ax.add_line(Line2D([vector.pos1.x, vector.pos2.x], [vector.pos1.y, vector.pos2.y], color='c', marker='.', linewidth=2))
-		self.ax.annotate('', xy=(vector.pos2.x, vector.pos2.y), xytext=(vector.pos1.x, vector.pos1.y), arrowprops=dict(arrowstyle='->', color='c'))
+		self.ax.add_line(Line2D([vector.pos1.x, vector.pos2.x], [vector.pos1.y, vector.pos2.y], color=vector.color, marker='.', linewidth=2))
+		self.ax.annotate('', xy=(vector.pos2.x, vector.pos2.y), xytext=(vector.pos1.x, vector.pos1.y), arrowprops=dict(arrowstyle='->', color=vector.color))
 
 	def add_line(self, line: Line):
-		self.ax.add_line(Line2D([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], color='y'))
+		self.lines.append(line)
 
 	def add_point(self, point: Point):
-		self.ax.scatter(point.x, point.y, color='m', marker='o')
+		self.ax.scatter(point.x, point.y, color=point.color, marker='o', zorder=5, s=15)
+		self.points.append(point)
 
 	def show(self):
+		if self.points:
+			min_x = min([ point.x for point in self.points ])
+			min_y = min([ point.y for point in self.points ])
+			max_x = max([ point.x for point in self.points ])
+			max_y = max([ point.y for point in self.points ])
+
+			min_point = Point[min_x, min_y]
+			max_point = Point[max_x, max_y]
+
+			if max_point.axes != min_point.axes:
+				scene_rect = Rectangle(max_point, min_point)
+			else:
+				scene_rect = Rectangle(max_point, [0,0])
+
+			for ray in self.rays:
+				ions = scene_rect.intersects(ray)
+				self.ax.add_line(Line2D([ray.pos1.x, ions[0].x], [ray.pos1.y, ions[0].y], color=ray.color, marker='.', markevery=[0], linewidth=2))
+				self.ax.annotate('', xy=tuple(ions[0].axes), xytext=(ray.pos1.x, ray.pos1.y), arrowprops=dict(arrowstyle='->', color=ray.color))
+
+			for line in self.lines:
+				ions = scene_rect.intersects(line)
+				self.ax.add_line(Line2D([ions[0].x, ions[1].x], [ions[0].y, ions[1].y], color=line.color))
+		else:
+			for line in self.lines:
+				self.ax.add_line(Line2D([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], color=line.color))
+
 		self.ax.axis('equal')
 		plt.show()
 
@@ -102,6 +151,8 @@ class Scene3D(Scene):
 			self.add_polygon(object)
 		elif isinstance(object, Circle):
 			self.add_circle(object)
+		elif isinstance(object, Shape3D):
+			self.add_shape3d(object)
 		elif isinstance(object, Composite):
 			for shape in object.shapes:
 				self.add(shape)
@@ -112,31 +163,32 @@ class Scene3D(Scene):
 			raise ValueError(f'Unexpected type {type(object)}. Object must be Shape/Primitive/Point')
 
 	def add_point(self, point: Point):
-		self.ax.scatter(point.x, point.y, point.z, color='m', marker='o')
+		self.ax.scatter(point.x, point.y, point.z, color=point.color, marker='o')
 
 	def add_vector(self, vector: Vector):
-		self.ax.quiver(vector.pos1.x, vector.pos1.y, vector.pos1.z,
-		vector.pos2.x - vector.pos1.x, vector.pos2.y - vector.pos1.y, vector.pos2.z - vector.pos1.z,
-		color='c')
+		self.ax.plot([vector.pos1.x, vector.pos2.x], [vector.pos1.y, vector.pos2.y], [vector.pos1.z, vector.pos2.z], color=vector.color, marker='.')
+		...
 
 	def add_segment(self, segment: Segment):
-		self.ax.plot([segment.pos1.x, segment.pos2.x], [segment.pos1.y, segment.pos2.y], [segment.pos1.z, segment.pos2.z], linestyle='--', color='g', marker='.')
+		self.ax.plot([segment.pos1.x, segment.pos2.x], [segment.pos1.y, segment.pos2.y], [segment.pos1.z, segment.pos2.z], linestyle='--', color=segment.color, marker='.')
 		
 	def add_ray(self, ray: Ray):
-		self.ax.plot([ray.pos1.x, ray.pos2.x], [ray.pos1.y, ray.pos2.y], [ray.pos1.z, ray.pos2.z], color='r', marker='.', markevery=[0], linewidth=2)
-		self.ax.quiver(ray.pos1.x, ray.pos1.y, ray.pos1.z,
-		ray.pos2.x - ray.pos1.x, ray.pos2.y - ray.pos1.y, ray.pos2.z - ray.pos1.z,
-		color='r', arrow_length_ratio=0.1)
+		self.ax.plot([ray.pos1.x, ray.pos2.x], [ray.pos1.y, ray.pos2.y], [ray.pos1.z, ray.pos2.z], color=ray.color, marker='.', markevery=[0], linewidth=2)
+		...
 
 	def add_line(self, line: Line):
-		self.ax.plot([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], [line.pos1.z, line.pos2.z], color='y')
+		self.ax.plot([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], [line.pos1.z, line.pos2.z], color=line.color)
 
 	def add_circle(self, circle: Circle):
-		self.ax.add_patch( MPLEllipse(xy=circle.center.axes[:3], width=circle.diameter, height=circle.diameter, edgecolor='r', fc='None') )
+		...
+
+	def add_shape3d(self, shape: Shape3D):
+		for polygon in shape.edges:
+			self.add_polygon(polygon)
 
 	def add_polygon(self, polygon: Polygon):
 		verts = [[ tuple([float(axis) for axis in point]) for point in eq_len_axeslists( *map(lambda point: point.axes, polygon.vertices), dimension=3 ) ]]
-		polygon = Poly3DCollection(verts, alpha=0.5, facecolor='cyan', edgecolor='r')
+		polygon = Poly3DCollection(verts, alpha=polygon.alpha, facecolor=polygon.bg_color, edgecolor=polygon.segments_color)
 		self.ax.add_collection3d(polygon)
 
 	def show(self):

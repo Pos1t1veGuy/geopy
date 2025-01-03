@@ -19,7 +19,9 @@ def circle_by_points(pos1: Point, pos2: Point) -> 'Circle':
 
 
 class Polygon(Shape2D):
-	def __init__(self, *args: List[[ Point, Point, ... ]], name: str = 'Polygon', pos: Point = None, segment_object = Segment, multidimension: bool = False):
+	def __init__(self, *args: List[[ Point, Point, ... ]], name: str = 'Polygon', pos: Point = None, segment_object = Segment, multidimension: bool = False,
+		bg_color: str = 'cyan', segments_color: str = 'r', alpha: float = 0.5):
+
 		if len(args) < 3:
 			raise ValueError(f'Length of points list at constructor must be >2, not {len(args)}')
 
@@ -37,6 +39,10 @@ class Polygon(Shape2D):
 		self.angles = []
 		self.name = name
 		self.multidimension = multidimension
+
+		self.bg_color = bg_color
+		self.segments_color = segments_color
+		self.alpha = alpha
 
 		self._setup(segment_object)
 
@@ -83,9 +89,11 @@ class Polygon(Shape2D):
 		elif isinstance(object, (Ray, Line)):
 			points = []
 			for segment in self.segments:
+				#print(object in segment, object, segment)
 				if object in segment:
 					for point in object.intersects(segment):
-						points.append(point)
+						if not point.axes in list(map(lambda point: point.axes, points)):
+							points.append(point)
 
 			return points
 			# Ray and Line can not be inside polygon and do not intersect it, so it will not be checked in self.inside
@@ -492,7 +500,7 @@ class Rhombus(Polygon):
 
 
 class Circle(Shape2D):
-	def __init__(self, center: 'Point', radius: int, name: str = 'Circle', multidimension: bool = False):
+	def __init__(self, center: 'Point', radius: int, name: str = 'Circle', multidimension: bool = False, color: str = 'purple'):
 		if isinstance(center, (tuple, list)):
 			center = Point(*center)
 
@@ -504,6 +512,7 @@ class Circle(Shape2D):
 		self.radius = radius
 		self.center = center
 		self.name = name
+		self.color = color
 		self.multidimension = multidimension
 
 	def intersects(self, object: Union[Primitive, Shape, 'Point', tuple, list], check_inside: bool = True) -> List['Point']:
