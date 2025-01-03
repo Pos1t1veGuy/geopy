@@ -123,6 +123,8 @@ class Scene2D(Scene):
 			for line in self.lines:
 				ions = scene_rect.intersects(line)
 				self.ax.add_line(Line2D([ions[0].x, ions[1].x], [ions[0].y, ions[1].y], color=line.color))
+				
+			# Scene draws lines and rays to the end by the min and max points that makes box. Intersection with box is a finish point of line and ray
 		else:
 			for line in self.lines:
 				self.ax.add_line(Line2D([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], color=line.color))
@@ -247,6 +249,8 @@ class Scene3D(Scene):
 			for line in self.lines:
 				ions = scene_rect.intersects(line)
 				self.ax.plot([ions[0].x, ions[1].x], [ions[0].y, ions[1].y], [ions[0].z, ions[1].z], color=line.color)
+
+			# Scene draws lines and rays to the end by the min and max points that makes box. Intersection with box is a finish point of line and ray
 		else:
 			for line in self.lines:
 				self.ax.plot([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], [line.pos1.z, line.pos2.z], color=line.color)

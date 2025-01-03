@@ -89,7 +89,6 @@ class Polygon(Shape2D):
 		elif isinstance(object, (Ray, Line)):
 			points = []
 			for segment in self.segments:
-				#print(object in segment, object, segment)
 				if object in segment:
 					for point in object.intersects(segment):
 						if not point.axes in list(map(lambda point: point.axes, points)):
