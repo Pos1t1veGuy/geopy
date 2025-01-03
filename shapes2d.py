@@ -156,12 +156,21 @@ class Polygon(Shape2D):
 		intersections = self.intersects(object)
 
 		if intersections:
-			for point in self.vertices:
-				if point in object and not point in intersections:
-					intersections.append(point)
-			for point in object.vertices:
-				if point in self and not point in intersections:
-					intersections.append(point)
+			for ion in self.vertices:
+				if ion in object and not ion in intersections:
+					if isinstance(ion, Point):
+						intersections.append(ion)
+					elif isinstance(ion, (Segment, Line, Ray)):
+						intersections.append(ion.pos1)
+						intersections.append(ion.pos2)
+
+			for ion in object.vertices:
+				if ion in self and not ion in intersections:
+					if isinstance(ion, Point):
+						intersections.append(ion)
+					elif isinstance(ion, (Segment, Line, Ray)):
+						intersections.append(ion.pos1)
+						intersections.append(ion.pos2)
 
 			return Polygon(*intersections, name=f'{self.name}_{object.name}_intersection', multidimension=True)
 

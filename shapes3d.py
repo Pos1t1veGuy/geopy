@@ -8,6 +8,9 @@ from .primitives import *
 class Shape3D(Shape):
 	dimension = 3
 
+	def intersection_area(self, object: Union[Primitive, Shape, Point, tuple, list]) -> 'Shape3D':
+		...
+
 
 class Parallelepiped(Shape3D):
 	def __init__(self, pos1: Union['Point', list, tuple], pos2: Union['Point', list, tuple], name: str = 'Parallelepiped'):
@@ -38,6 +41,13 @@ class Parallelepiped(Shape3D):
 			for edge in self.edge:
 				if object in edge:
 					return [object]
+
+		if isinstance(object, Shape2D):
+			ions = []
+			for segment in self.segments:
+				for ion in segment.intersects(object):
+					ions.append(ion)
+			return ions
 
 		if self.inside(object) and check_inside:
 			return [object]
@@ -250,3 +260,7 @@ class Tetrahedron(Shape3D):
 		return f'{self.name}({self.center_of_mass}, volume={self.volume}, area={self.area})'
 	def __repr__(self):
 		return f'{self.__class__.__name__}({self.pos1}, {self.pos2} name="{self.name}")'
+
+
+class Sphere:
+	...

@@ -81,6 +81,7 @@ class Point(Primitive, metaclass=PointMeta):
 		else:
 			raise NotImplementedError(f"height_to not implemented for type {type(object)}")
 
+	# Returns a Point that makes with self Point a new Line that makes 90 degrees Angle to "pr" Line
 	def project_to_line(self, pr: 'Line') -> 'Point':
 		p1 = np.array(pr.pos1.axes)
 		axes, line_vector = eq_len_axeslists(self.axes, pr.vector.pos2.axes)
@@ -306,27 +307,75 @@ class Line(Primitive):
 			if self.true_dimension == object.true_dimension == 1:
 				# If lines has only 1 non zero axis
 
-				if true_dim_indexes_1 == true_dim_indexes_2: # Same non zero axis. Return intersection point or segment
+				if true_dim_indexes_1 == true_dim_indexes_2:
+					# Same non zero axis. It is intersection on the same line. Returns intersection point, segment, ray, line or vector
 					if self.pos1 in object and self.pos2 in object:
-						return [self]
+						if isinstance(self, Segment) and isinstance(object, Segment) or isinstance(self, Vector) and isinstance(object, Vector) or iisinstance(self, Ray) and isinstance(object, Ray) or isinstance(self, Line) and isinstance(object, Line):
+							# If 2 equals lines/rays/segements/vectors returns itself
+							return [self.copy()]
+						elif isinstance(self, Line): # if 1 line and 1 Ray/Segment/Vector returns Ray/Segment/Vector because it is less
+							return [object.copy()]
+						elif isinstance(object, Line): # if 1 Ray/Segment/Vector and 1 line returns Ray/Segment/Vector because it is less
+							return [self.copy()]
+						elif isinstance(self, Ray) and isinstance(object, (Segment, Vector)): # if 1 ray and 1 segment/vector returns segment/vector because it is less
+							return [object.copy()]
+						elif isinstance(self, (Segment, Vector)) and isinstance(object, Ray): # if 1 segment/vector and 1 ray returns segment/vector because it is less
+							return [self.copy()]
+
 					elif object.pos1 in self and object.pos2 in self:
-						return [object]
+						if isinstance(self, Segment) and isinstance(object, Segment) or isinstance(self, Vector) and isinstance(object, Vector) or iisinstance(self, Ray) and isinstance(object, Ray) or isinstance(self, Line) and isinstance(object, Line):
+							# If 2 equals lines/rays/segements/vectors returns itself
+							return [self.copy()]
+						elif isinstance(self, Line): # if 1 line and 1 Ray/Segment/Vector returns Ray/Segment/Vector because it is less
+							return [object.copy()]
+						elif isinstance(object, Line): # if 1 Ray/Segment/Vector and 1 line returns Ray/Segment/Vector because it is less
+							return [self.copy()]
+						elif isinstance(self, Ray) and isinstance(object, (Segment, Vector)): # if 1 ray and 1 segment/vector returns segment/vector because it is less
+							return [object.copy()]
+						elif isinstance(self, (Segment, Vector)) and isinstance(object, Ray): # if 1 segment/vector and 1 ray returns segment/vector because it is less
+							return [self.copy()]
+
 					elif self.pos1 in object:
 						if object.pos1 in self:
-							return [Segment(self.pos1, object.pos1, name=f'{self.name}_{object.name}_intersection')]
-						elif self.pos2 in object:
-							return [Segment(object.pos1, self.pos2, name=f'{self.name}_{object.name}_intersection')]
+							ion = object.pos1
+						elif object.pos2 in self:
+							ion = object.pos2
 						else:
 							return [self.pos1.copy]
+
+						if isinstance(self, Ray) and isinstance(object, Ray):
+							vec1, vec2 = self.vector, object.vector
+							if vec1.compare_directions(vec2):
+								return [Ray(self.pos1, ion, name=f'{self.name}_{object.name}_intersection')]
+							elif vec1.is_reverse_direction(vec2):
+								return [Segment(self.pos1, ion, name=f'{self.name}_{object.name}_intersection')]
+							else:
+								return []
+						else:
+							return [Segment(self.pos1, ion, name=f'{self.name}_{object.name}_intersection')]
+
 					elif object.pos1 in self:
-						if object.pos2 in self:
-							return [Segment(self.pos1, object.pos2, name=f'{self.name}_{object.name}_intersection')]
+						if self.pos2 in object:
+							ion = self.pos2
 						elif self.pos1 in object:
-							return [Segment(object.pos1, self.pos1, name=f'{self.name}_{object.name}_intersection')]
+							ion = self.pos1
 						else:
 							return [object.pos1.copy]
+
+						if isinstance(self, Ray) and isinstance(object, Ray):
+							vec1, vec2 = self.vector, object.vector
+							if vec1.compare_directions(vec2):
+								return [Ray(self.pos1, ion, name=f'{self.name}_{object.name}_intersection')]
+							elif vec1.is_reverse_direction(vec2):
+								return [Segment(self.pos1, ion, name=f'{self.name}_{object.name}_intersection')]
+							else:
+								return []
+						else:
+							return [Segment(self.pos1, ion, name=f'{self.name}_{object.name}_intersection')]
+
 					return []
-				else: # Different non zero axis. Lines are perpendicular
+
+				else: # Different non zero axes. Lines are perpendicular
 					ion = [0] * max(self.dimension, object.dimension)
 
 					ion[true_dim_indexes_1[0]] = object.pos1[true_dim_indexes_1[0]]
@@ -346,6 +395,7 @@ class Line(Primitive):
 				return [point] if point in object else []
 				# Here is must be "if point in self and point in object", I dont know why, self.intersects(point) returns None, that means NO INTERSECTION.
 				# Point intersection can be only empty list or List[Point], but this is NoneType. WHY?! I dont know. Maybe I am blind and don't see the reason
+				# Try print( self.intersects(point) ) after "elif" if you dont believe me
 
 			elif self.true_dimension == 2 and object.true_dimension == 1:
 				# Returns result from last IF statement by changing "self -> object" to "object -> self"
@@ -399,22 +449,29 @@ class Line(Primitive):
 		else:
 			raise ValueError(f"Invalid argument type for 'object'. Expected types are Union[Primitive, Point, list, tuple], but received {type(object)}.")
 
-	# List of 2D projects of Line with any dimension, it is used in multidimension intersections
+	# List of 2D projects of Line with any dimension >2, it is used in multidimension intersections
 	def projects_2D(self, max_dimension: int = None):
 		dim = max_dimension if max_dimension else self.dimension
 		projects_count = dim * (dim - 1) // 2
 		
-		lines = []
-		for i, j in combinations(range(dim), 2):
-			pos1 = np.zeros(dim); pos2 = np.zeros(dim)
-			pos1[i] = self.pos1[i]; pos1[j] = self.pos1[j]
-			pos2[i] = self.pos2[i]; pos2[j] = self.pos2[j]
-			vector = pos2 - pos1
-			
-			lines.append(Line(pos1, pos2 + vector))
+		if self.dimension > 2:
+			lines = []
+			for i, j in combinations(range(dim), 2):
+				pos1 = np.zeros(dim); pos2 = np.zeros(dim)
+				pos1[i] = self.pos1[i]; pos1[j] = self.pos1[j]
+				pos2[i] = self.pos2[i]; pos2[j] = self.pos2[j]
+				vector = pos2 - pos1
+				
+				lines.append(Line(pos1, pos2 + vector))
+			return lines
 
-		return lines
+		elif self.dimension == 2:
+			return [self.copy()]
 
+		else:
+			return []
+
+	# Only for 2D lines. Returns Y of point on Line by X of point on Line
 	def y_from_x(self, x: float, return_none: bool = False) -> float:
 		if self.dimension == 1:
 			return self.pos1.x
@@ -429,6 +486,7 @@ class Line(Primitive):
 			else:
 				return self.k * x + self.m if self.intersects([x, self.k * x + self.m]) or not return_none else None
 
+	# Only for 2D lines. Returns X of point on Line by Y of point on Line
 	def x_from_y(self, y: float, return_none: bool = False) -> float:
 		if self.dimension == 1:
 			return self.pos1.x
@@ -449,6 +507,7 @@ class Line(Primitive):
 	def is_perpendicular(self, object: Union['Line', 'Segment', 'Ray', 'Vector', list, tuple]) -> bool:
 		return self.vector.is_perpendicular(object.vector)
 
+	# Moves the Line. New Line will intersects "point" in argument
 	def at_pos(self, point: Point) -> 'Line':
 		if isinstance(point, (list, tuple, np.ndarray)):
 			point = Point(point)
@@ -459,17 +518,19 @@ class Line(Primitive):
 	def copy(self) -> 'Line':
 		return self.__class__(self.pos1, self.pos2, name=self.name)
 
+	# Cuts from pos1 and pos2 unnecessary axes
 	def project_to(self, dimension: int) -> 'Line':
 		if dimension == 0:
 			return Point(name=self.name)
 		elif dimension == 1:
-			return Line([-1], [1], name=self.name)
+			return Line(self.pos1.x, self.pos2.x, name=self.name)
 		elif dimension >= 2:
 			if dimension >= self.dimension:
 				return self.copy()
 			else:
 				return self.__class__(list(self.pos1.axes[:dimension]), list(self.pos2.axes[:dimension]), name=self.name)
 
+	# Convertor
 	@property
 	def to_segment(self):
 		return Segment(self.pos1, self.pos2, name=self.name)
@@ -483,10 +544,7 @@ class Line(Primitive):
 	def to_line(self):
 		return Line(self.pos1, self.pos2, name=self.name)
 
-	@property
-	def random_point(self) -> 'Point':
-		return self( round(r.uniform(0,1), 2) )
-
+	# Only for 2D Lines. Mirror with center in (0,0)
 	@property
 	def mirror_y(self):
 		return Line.by_func(lambda x: -self.k * x + self.m)
@@ -494,6 +552,7 @@ class Line(Primitive):
 	def mirror_x(self):
 		return Line.by_func(lambda x: -self.k * x - self.m)
 
+	# Angle between 2 lines: self and Line(x=0)
 	@property
 	def angle(self) -> 'Angle':
 		if self.direction != 'point':
@@ -515,6 +574,7 @@ class Line(Primitive):
 	def true_dimension(self) -> int:
 		return len([ (i, j) for i, j in zip(self.pos1.axes, self.pos2.axes) if i != j ])
 
+	# To create new Space in perpendicular
 	def _gram_schmidt(self, vectors: List[np.ndarray]) -> List[np.ndarray]:
 		ortho_vectors = []
 		for v in vectors:
@@ -524,15 +584,20 @@ class Line(Primitive):
 		return ortho_vectors
 
 	@property
-	def perpendicular(self) -> 'Space':
-		direction_vector_np = self.vector.pos2.axes
+	def perpendicular(self) -> Union['Space', 'Line']:
+		if self.dimension >= 3:
+			direction_vector_np = self.vector.pos2.axes
 
-		identity_matrix = np.eye(self.dimension)
+			identity_matrix = np.eye(self.dimension)
 
-		vectors = [direction_vector_np] + [identity_matrix[i] for i in range(self.dimension) if not np.allclose(identity_matrix[i], direction_vector_np)]
-		ortho_vectors = self._gram_schmidt(np.array(vectors))[1:]  # Exclude the direction vector itself
+			vectors = [direction_vector_np] + [identity_matrix[i] for i in range(self.dimension) if not np.allclose(identity_matrix[i], direction_vector_np)]
+			ortho_vectors = self._gram_schmidt(np.array(vectors))[1:]  # Exclude the direction vector itself
 
-		return Space(self.center, [Vector(self.center, self.center + Point(v)) for v in ortho_vectors], name=f'{self.name}_perpendicular_space')
+			return Space(self.center, [Vector(self.center, self.center + Point(v)) for v in ortho_vectors], name=f'{self.name}_perpendicular_space')
+		else:
+			segment = Point[0,0].height_to(self.at_pos([1,0])) # Moves the Line in ".at_pos([1,0])" because Line with intersection in [0,0] will makes Segment[(0,0), (0,0)]
+			segment.name = f'{self.name}_perpendicular'
+			return segment.to_line
 
 	@property
 	def direction(self) -> Union[str, 'Vector']:
@@ -667,6 +732,10 @@ class Segment(Line):
 
 		return Segment([1.0,func(1)], points[0], name=name)
 
+	@property
+	def random_point(self) -> 'Point':
+		return self( round(r.uniform(0,1), 2) )
+
 class Ray(Line):
 	def __init__(self, pos1: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Ray', color: str = 'r'):
 		super().__init__(pos1, pos2, name=name, color=color)
@@ -753,12 +822,21 @@ class Vector(Segment, metaclass=VectorMeta):
 	def dot(self, vector) -> float:
 		return sum([ vector.to_zero.pos2[i] * self.to_zero.pos2[i] for i in range(self.dimension) ])
 
+	# True if vectors have an equal direction else False
 	def compare_directions(self, vector: Union['Vector', 'Point', tuple, list]) -> bool:
 		if isinstance(vector, (tuple, list, Point, np.ndarray)):
 			vector = Vector[vector]
 
 		axes = eq_len_axeslists(self.to_zero.pos2.axes, vector.to_zero.pos2.axes)
-		return np.dot(np.array(axes[0]), np.array(axes[1])) > 0
+		return (bool(np.dot(np.array(axes[0]), np.array(axes[1])) > 0) and self.is_parallel(vector)) or vector.direction == 'point' or self.direction == 'point'
+
+	# True vector*-1 has equal direction to self else False
+	def is_reverse_direction(self, vector: Union['Vector', 'Point', tuple, list]) -> bool:
+		if isinstance(vector, (tuple, list, Point, np.ndarray)):
+			vector = Vector[vector]
+
+		axes = eq_len_axeslists(self.to_zero.pos2.axes, vector.to_zero.pos2.axes)
+		return (not self.compare_directions(vector)) and self.is_parallel(vector)
 
 	def is_perpendicular(self, vector: Union['Vector', 'Point', tuple, list, 'Line', 'Ray', 'Vector', 'Segment']) -> bool:
 		if isinstance(vector, (tuple, list, Point, np.ndarray)):
@@ -774,7 +852,9 @@ class Vector(Segment, metaclass=VectorMeta):
 			vector = Vector[vector]
 		elif isinstance(vector, (Segment, Line, Ray)):
 			vector = vector.vector
-		return self.pos2.axes == vector.pos2.axes or self.pos2 in vector or vector.pos2 in self
+
+		zero_vec1, zero_vec2 = self.to_zero.pos2, vector.to_zero.pos2
+		return (zero_vec1 in Line([0,0], zero_vec2)) or vector.direction == 'point' or self.direction == 'point'
 
 	@property
 	def vector(self):
@@ -782,7 +862,7 @@ class Vector(Segment, metaclass=VectorMeta):
 
 	@property
 	def direction(self) -> str:
-		if self.dimension == 0:
+		if self.dimension == 0 or self.pos1.axes == self.pos2.axes:
 			return 'point'
 		elif self.dimension == 1:
 			return 'horizontal'
