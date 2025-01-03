@@ -90,6 +90,8 @@ class Scene2D(Scene):
 	def add_vector(self, vector: Vector):
 		self.ax.add_line(Line2D([vector.pos1.x, vector.pos2.x], [vector.pos1.y, vector.pos2.y], color=vector.color, marker='.', linewidth=2))
 		self.ax.annotate('', xy=(vector.pos2.x, vector.pos2.y), xytext=(vector.pos1.x, vector.pos1.y), arrowprops=dict(arrowstyle='->', color=vector.color))
+		self.points.append(vector.pos1)
+		self.points.append(vector.pos2)
 
 	def add_line(self, line: Line):
 		self.lines.append(line)
@@ -132,6 +134,9 @@ class Scene3D(Scene):
 	def __init__(self, *args):
 		self.fig = plt.figure()
 		self.ax = self.fig.add_subplot(111, projection='3d')
+		self.lines = []
+		self.rays = []
+		self.points = []
 
 		for object in args:
 			self.add(object)
@@ -164,34 +169,88 @@ class Scene3D(Scene):
 
 	def add_point(self, point: Point):
 		self.ax.scatter(point.x, point.y, point.z, color=point.color, marker='o')
+		self.points.append(point)
 
 	def add_vector(self, vector: Vector):
 		self.ax.plot([vector.pos1.x, vector.pos2.x], [vector.pos1.y, vector.pos2.y], [vector.pos1.z, vector.pos2.z], color=vector.color, marker='.')
-		...
+		self.points.append(vector.pos1)
+		self.points.append(vector.pos2)
 
 	def add_segment(self, segment: Segment):
 		self.ax.plot([segment.pos1.x, segment.pos2.x], [segment.pos1.y, segment.pos2.y], [segment.pos1.z, segment.pos2.z], linestyle='--', color=segment.color, marker='.')
+		self.points.append(segment.pos1)
+		self.points.append(segment.pos2)
 		
 	def add_ray(self, ray: Ray):
-		self.ax.plot([ray.pos1.x, ray.pos2.x], [ray.pos1.y, ray.pos2.y], [ray.pos1.z, ray.pos2.z], color=ray.color, marker='.', markevery=[0], linewidth=2)
-		...
+		self.rays.append(ray)
+		self.points.append(ray.pos1)
 
 	def add_line(self, line: Line):
-		self.ax.plot([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], [line.pos1.z, line.pos2.z], color=line.color)
+		self.lines.append(line)
 
 	def add_circle(self, circle: Circle):
-		...
+		cx, cy, cz = circle.center_of_mass.x, circle.center_of_mass.y, circle.center_of_mass.z
+		r = circle.radius
+
+		theta = np.linspace(0, 2 * np.pi, 100)
+		x = r * np.cos(theta) + cx
+		y = r * np.sin(theta) + cy
+		z = np.full_like(x, cz)
+
+		self.ax.plot(x, y, z, color=circle.color)
+
+		self.points.append(circle.center)
+
+		self.points.append(circle.center - [circle.radius, 0])
+		self.points.append(circle.center + [circle.radius, 0])
+		self.points.append(circle.center - [0, circle.radius])
+		self.points.append(circle.center + [0, circle.radius])
 
 	def add_shape3d(self, shape: Shape3D):
 		for polygon in shape.edges:
 			self.add_polygon(polygon)
 
 	def add_polygon(self, polygon: Polygon):
+		for point in polygon.vertices:
+			self.points.append(point)
+
 		verts = [[ tuple([float(axis) for axis in point]) for point in eq_len_axeslists( *map(lambda point: point.axes, polygon.vertices), dimension=3 ) ]]
 		polygon = Poly3DCollection(verts, alpha=polygon.alpha, facecolor=polygon.bg_color, edgecolor=polygon.segments_color)
 		self.ax.add_collection3d(polygon)
 
 	def show(self):
+		if self.points:
+			min_x = min([ point.x for point in self.points ])
+			min_y = min([ point.y for point in self.points ])
+
+			max_x = max([ point.x for point in self.points ])
+			max_y = max([ point.y for point in self.points ])
+
+			min_z = min([ point.z for point in self.points ])
+			max_z = max([ point.z for point in self.points ])
+
+			min_point = Point[min_x, min_y, min_z]
+			max_point = Point[max_x, max_y, max_z]
+
+			if max_point.axes != min_point.axes:
+				if max_point.x != min_point.x and max_point.y != min_point.y and max_point.z != min_point.z:
+					scene_rect = Box(max_point, min_point)
+				else:
+					scene_rect = Rectangle(max_point, min_point, multidimension=True)
+			else:
+				scene_rect = Box(max_point, [0,0,0])
+
+			for ray in self.rays:
+				ions = scene_rect.intersects(ray)
+				self.ax.plot([ray.pos1.x, ions[0].x], [ray.pos1.y, ions[0].y], [ray.pos1.z, ions[0].z], color=ray.color, marker='.', markevery=[0], linewidth=2)
+
+			for line in self.lines:
+				ions = scene_rect.intersects(line)
+				self.ax.plot([ions[0].x, ions[1].x], [ions[0].y, ions[1].y], [ions[0].z, ions[1].z], color=line.color)
+		else:
+			for line in self.lines:
+				self.ax.plot([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], [line.pos1.z, line.pos2.z], color=line.color)
+
 		plt.show()
 
 class Scene4D:
