@@ -38,7 +38,7 @@ class Parallelepiped(Shape3D):
 			object = Point(*object)
 
 		if isinstance(object, Point):
-			for edge in self.edge:
+			for edge in self.edges:
 				if object in edge:
 					return [object]
 
@@ -48,6 +48,12 @@ class Parallelepiped(Shape3D):
 				for ion in segment.intersects(object):
 					ions.append(ion)
 			return ions
+
+		if isinstance(object, Shape3D):
+			if not isinstance(object, Sphere):
+				... # Сделать пересечение полигонов и многомерных примитивов в классе MDPolygon
+			else:
+				...
 
 		if self.inside(object) and check_inside:
 			return [object]

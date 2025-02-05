@@ -487,6 +487,56 @@ class Triangle(Polygon):
 		else:
 			return f'{self.angle_type} {self.side_type}'
 
+	@staticmethod
+	def by_lengths(len1: Union[int, float], len2: Union[int, float], len3: Union[int, float], option: int = 0,
+		name: str = 'Triangle', pos: Point = None, segment_object = Segment, multidimension: bool = False) -> 'Triangle':
+		'''
+		triangle can be of two types with setted lengths. Third point is intersection of two Circles from points first and second.
+		So, if lengths are correct Circles must have 2 interstcion points and 2 options of third point.
+		OPTION kwarg is an integer index of intersection from Circles intersections. It can be 0 or 1, because here is two intersections.
+		'''
+		p1 = Point[0, 0]
+		p2 = Point[len1, 0]
+		c1 = Circle(p1, len2)
+		c2 = Circle(p2, len3)
+
+		points3 = c1.intersects(c2)
+		if len(points3) == 2:
+			return Triangle(p1, p2, points3[option], name=name, pos=pos, segment_object=segment_object, multidimension=multidimension)
+		else:
+			raise ValueError(f'Lengths are incorrect: {len1}, {len2}, {len3}')
+
+	@staticmethod
+	def by_angles_and_length(ang1: Union[int, float, Angle], ang2: Union[int, float, Angle], length: Union[int, float],
+		name: str = 'Triangle', pos: Point = None, segment_object = Segment, multidimension: bool = False) -> 'Triangle':
+		if isinstance(ang1, Angle):
+			ang1 = ang1.degrees
+		if isinstance(ang2, Angle):
+			ang2 = ang2.degrees
+
+		p1 = Point[0, 0]
+		p2 = Point[0, length]
+
+		l1 = Line(p1, p2)
+		l2 = Line.by_angle(p1, ang1)
+		l3 = Line.by_angle(p2, abs(180 - ang1))
+
+		p3 = l2.intersects(l3)[0]
+		return Triangle(p1, p2, p3, name=name, pos=pos, segment_object=segment_object, multidimension=multidimension)
+
+	@staticmethod
+	def by_lengths_and_angle(len1: Union[int, float], len2: Union[int, float], angle: Union[int, float, Angle],
+		name: str = 'Triangle', pos: Point = None, segment_object = Segment, multidimension: bool = False) -> 'Triangle':
+		if isinstance(angle, Angle):
+			angle = angle.degrees
+
+		p1 = Point[0, 0]
+		p2 = Point[len1, 0]
+
+		segment = Segment.by_angle(p1, angle, len2)
+		return Triangle(p1, p2, segment.pos2, name=name, pos=pos, segment_object=segment_object, multidimension=multidimension)
+
+
 class Rhombus(Polygon):
 	def __init__(self, center: Point, diagonal_x: int, diagonal_y: int, name: str = 'Rhombus', pos: Point = None, segment_object = Segment, multidimension: bool = False):
 		if isinstance(center, (tuple, list)):
@@ -549,7 +599,7 @@ class Circle(Shape2D):
 			elif object.direction == 'point':
 				return object.pos1 if self.intersects(object.pos1) else []
 
-		elif isinstance(object, Polygon2D):
+		elif isinstance(object, Polygon):
 			res = []
 			for segment in object.segments:
 				if segment in self:
@@ -575,15 +625,17 @@ class Circle(Shape2D):
 
 				elif distance.length < self.radius + object.radius:
 					a = (self.radius**2 - object.radius**2 + distance.length**2) / (2 * distance.length)
-					h = sqrt(self.radius**2 - a**2) if self.radius**2 - a**2 > 0 else sqrt(object.radius**2 - a**2)
-					intercenter = Point(
-						self.x + a * (object.x - self.x) / distance.length,
-						self.y + a * (object.y - self.y) / distance.length,
-					)
-					return [
-						Point(intercenter.x + h*(object.y - self.y) / distance.length, intercenter.y - h*(object.x - self.x) / distance.length),
-						Point(intercenter.x - h*(object.y - self.y) / distance.length, intercenter.y + h*(object.x - self.x) / distance.length),
-					]
+					if self.radius**2 - a**2 > 0 and object.radius**2 - a**2:
+						h = sqrt(self.radius**2 - a**2) if self.radius**2 - a**2 > 0 else sqrt(object.radius**2 - a**2)
+						intercenter = Point(
+							self.x + a * (object.x - self.x) / distance.length,
+							self.y + a * (object.y - self.y) / distance.length,
+						)
+						return [
+							Point(intercenter.x + h*(object.y - self.y) / distance.length, intercenter.y - h*(object.x - self.x) / distance.length),
+							Point(intercenter.x - h*(object.y - self.y) / distance.length, intercenter.y + h*(object.x - self.x) / distance.length),
+						]
+					return []
 
 				elif distance.length + self.radius < object.radius and check_inside:
 					return self.center

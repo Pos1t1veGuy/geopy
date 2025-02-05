@@ -95,18 +95,20 @@ class Scene2D(Scene):
 
 	def add_line(self, line: Line):
 		self.lines.append(line)
+		self.points.append(line.pos1)
+		self.points.append(line.pos2)
 
 	def add_point(self, point: Point):
 		self.ax.scatter(point.x, point.y, color=point.color, marker='o', zorder=5, s=15)
 		self.points.append(point)
 
 	def show(self):
-		if self.points:
-			min_x = min([ point.x for point in self.points ])
-			min_y = min([ point.y for point in self.points ])
-			max_x = max([ point.x for point in self.points ])
-			max_y = max([ point.y for point in self.points ])
+		min_x = min([ point.x for point in self.points ])
+		min_y = min([ point.y for point in self.points ])
+		max_x = max([ point.x for point in self.points ])
+		max_y = max([ point.y for point in self.points ])
 
+		if self.points:
 			min_point = Point[min_x, min_y]
 			max_point = Point[max_x, max_y]
 
@@ -189,6 +191,8 @@ class Scene3D(Scene):
 
 	def add_line(self, line: Line):
 		self.lines.append(line)
+		self.points.append(line.pos1)
+		self.points.append(line.pos2)
 
 	def add_circle(self, circle: Circle):
 		cx, cy, cz = circle.center_of_mass.x, circle.center_of_mass.y, circle.center_of_mass.z

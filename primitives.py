@@ -376,6 +376,7 @@ class Line(Primitive):
 					return []
 
 				else: # Different non zero axes. Lines are perpendicular
+					print(object)
 					ion = [0] * max(self.dimension, object.dimension)
 
 					ion[true_dim_indexes_1[0]] = object.pos1[true_dim_indexes_1[0]]
@@ -722,19 +723,24 @@ class Segment(Line):
 
 	@staticmethod
 	def by_angle(pos1: Union[tuple, list, 'Point'], angle: int, length: int, name: str = 'Segment') -> 'Segment':
+		from .shapes2d import Circle
 		if isinstance(pos1, (tuple, list, np.ndarray)):
 			pos1 = Point(*pos1)
 
 		k = tan(radians(angle))
 		m = pos1.y - pos1.x * k
-		line = Line.by_func( lambda x: k * x + m )
-		points = Circle(center, length).intersects(line)
+		func = lambda x: k * x + m
+		line = Line.by_func(func)
+		points = Circle(pos1, length).intersects(line)
 
 		return Segment([1.0,func(1)], points[0], name=name)
 
 	@property
 	def random_point(self) -> 'Point':
 		return self( round(r.uniform(0,1), 2) )
+
+	def __repr__(self):
+		return f'{self.__class__.__name__}{self.dimension}D({self.pos1}, {self.pos2}, length={round(self.length, 3)}, name="{self.name}")'
 
 class Ray(Line):
 	def __init__(self, pos1: Union[Point, list, tuple], pos2: Union[Point, list, tuple], name: str = 'Ray', color: str = 'r'):
@@ -1102,7 +1108,7 @@ class Angle:
 	def __str__(self):
 		return f'{self.name}[({self.pos1} -> {self.midpos} -> {self.pos2}), {int(self.degrees)} degrees]'
 	def __repr__(self):
-		return f'Angle({self.pos1} <- {self.midpos} -> {self.pos2}, name="{self.name}")'
+		return f'Angle({self.midpos}, {round(self.degrees, 3)} degrees, name="{self.name}")'
 
 
 class AffineSpace:
