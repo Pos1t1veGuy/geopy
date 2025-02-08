@@ -12,7 +12,8 @@ from .shapes3d import *
 
 
 class Scene:
-	...
+	def save(self, filepath: str):
+		plt.savefig(filepath)
 
 
 class Scene2D(Scene):
@@ -86,6 +87,8 @@ class Scene2D(Scene):
 	def add_ray(self, ray: Ray):
 		self.rays.append(ray)
 		self.points.append(ray.pos1)
+		circle = Circle(ray.pos1, 6)
+		self.points.append(circle.intersects(ray)[0])
 
 	def add_vector(self, vector: Vector):
 		self.ax.add_line(Line2D([vector.pos1.x, vector.pos2.x], [vector.pos1.y, vector.pos2.y], color=vector.color, marker='.', linewidth=2))
@@ -95,36 +98,53 @@ class Scene2D(Scene):
 
 	def add_line(self, line: Line):
 		self.lines.append(line)
-		self.points.append(line.pos1)
-		self.points.append(line.pos2)
 
 	def add_point(self, point: Point):
 		self.ax.scatter(point.x, point.y, color=point.color, marker='o', zorder=5, s=15)
 		self.points.append(point)
 
-	def show(self):
-		min_x = min([ point.x for point in self.points ])
-		min_y = min([ point.y for point in self.points ])
-		max_x = max([ point.x for point in self.points ])
-		max_y = max([ point.y for point in self.points ])
+	def draw_line(self, line: Line):
+		self.ax.add_line(Line2D([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], color=line.color))
 
+	def show(self):
 		if self.points:
+			min_x = min([ point.x for point in self.points ])
+			min_y = min([ point.y for point in self.points ])
+			max_x = max([ point.x for point in self.points ])
+			max_y = max([ point.y for point in self.points ])
 			min_point = Point[min_x, min_y]
 			max_point = Point[max_x, max_y]
 
-			if max_point.axes != min_point.axes:
+			if max_point != min_point:
 				scene_rect = Rectangle(max_point, min_point)
-			else:
-				scene_rect = Rectangle(max_point, [0,0])
 
 			for ray in self.rays:
-				ions = scene_rect.intersects(ray)
-				self.ax.add_line(Line2D([ray.pos1.x, ions[0].x], [ray.pos1.y, ions[0].y], color=ray.color, marker='.', markevery=[0], linewidth=2))
-				self.ax.annotate('', xy=tuple(ions[0].axes), xytext=(ray.pos1.x, ray.pos1.y), arrowprops=dict(arrowstyle='->', color=ray.color))
+				if max_point != min_point:
+					ions = scene_rect.intersects(ray)
+					self.ax.add_line(Line2D([ray.pos1.x, ions[0].x], [ray.pos1.y, ions[0].y], color=ray.color, marker='.', markevery=[0], linewidth=2))
+					self.ax.annotate('', xy=tuple(ions[0].axes), xytext=(ray.pos1.x, ray.pos1.y), arrowprops=dict(arrowstyle='->', color=ray.color))
+				else:
+					self.ax.add_line(Line2D([ray.pos1.x, ray.pos2.x], [ray.pos1.y, ray.pos2.y], color=ray.color, marker='.', markevery=[0], linewidth=2))
+					self.ax.annotate('', xy=(ray.pos2.x, ray.pos2.y), xytext=(ray.pos1.x, ray.pos1.y), arrowprops=dict(arrowstyle='->', color=ray.color))
 
 			for line in self.lines:
 				ions = scene_rect.intersects(line)
-				self.ax.add_line(Line2D([ions[0].x, ions[1].x], [ions[0].y, ions[1].y], color=line.color))
+
+				if ions:
+					if all([ isinstance(point, Point) for point in ions ]):
+						self.ax.add_line(Line2D([ions[0].x, ions[1].x], [ions[0].y, ions[1].y], color=line.color))
+					else:
+						for ion in ions:
+							if isinstance(ion, (Point)):
+								self.add(ion)
+							elif isinstance(ion, (Line, Segment, Ray)):
+								self.draw_line(ion)
+							else:
+								raise ValueError(f'Intersection of Scene and Line gets invalid result {ions}, it must be Point, Line, Ray or Segment list')
+				else:
+					self.points.append(scene_rect.center_of_mass.height_to(line).pos2)
+					self.show()
+					return
 				
 			# Scene draws lines and rays to the end by the min and max points that makes box. Intersection with box is a finish point of line and ray
 		else:
@@ -224,6 +244,9 @@ class Scene3D(Scene):
 		polygon = Poly3DCollection(verts, alpha=polygon.alpha, facecolor=polygon.bg_color, edgecolor=polygon.segments_color)
 		self.ax.add_collection3d(polygon)
 
+	def draw_line(self, line: Line):
+		self.ax.plot([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], [line.pos1.z, line.pos2.z], color=line.color)
+
 	def show(self):
 		if self.points:
 			min_x = min([ point.x for point in self.points ])
@@ -252,7 +275,8 @@ class Scene3D(Scene):
 
 			for line in self.lines:
 				ions = scene_rect.intersects(line)
-				self.ax.plot([ions[0].x, ions[1].x], [ions[0].y, ions[1].y], [ions[0].z, ions[1].z], color=line.color)
+				self.draw_line(line) #TODO: поправить
+				#self.ax.plot([ions[0].x, ions[1].x], [ions[0].y, ions[1].y], [ions[0].z, ions[1].z], color=line.color)
 
 			# Scene draws lines and rays to the end by the min and max points that makes box. Intersection with box is a finish point of line and ray
 		else:

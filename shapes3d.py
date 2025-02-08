@@ -42,12 +42,22 @@ class Parallelepiped(Shape3D):
 				if object in edge:
 					return [object]
 
-		if isinstance(object, Shape2D):
+		if isinstance(object, (Ray, Line)):
 			ions = []
 			for segment in self.segments:
 				for ion in segment.intersects(object):
-					ions.append(ion)
+					if not ion in ions:
+						ions.append(ion)
 			return ions
+
+		if isinstance(object, (Segment, Vector, Shape2D)):
+			ions = []
+			for segment in self.segments:
+				for ion in segment.intersects(object):
+					if not ion in ions:
+						ions.append(ion)
+			if ions:
+				return ions
 
 		if isinstance(object, Shape3D):
 			if not isinstance(object, Sphere):
@@ -121,7 +131,7 @@ class Parallelepiped(Shape3D):
 	@property
 	def center_of_mass(self) -> 'Point':
 		return Point([
-			sum([ vertice[i] for vertice in self.vertices ])/len(self.vertices) for i in range(self.dimension)
+			to_fraction(sum([ vertice[i] for vertice in self.vertices ]), len(self.vertices)) for i in range(self.dimension)
 		])
 
 	@property
@@ -240,7 +250,7 @@ class Tetrahedron(Shape3D):
 	@property
 	def center_of_mass(self) -> 'Point':
 		return Point([
-			sum([ vertice[i] for vertice in self.vertices ])/len(self.vertices) for i in range(self.dimension)
+			to_fraction(sum([ vertice[i] for vertice in self.vertices ]), len(self.vertices)) for i in range(self.dimension)
 		])
 
 	@property

@@ -82,6 +82,7 @@ class Polygon(Shape2D):
 				if object in segment:
 					for point in object.intersects(segment):
 						points.append(point)
+
 			if points:
 				return points
 			# Segment and Vector may be inside polygon and do not intersect it, so it will be checked in self.inside
@@ -91,7 +92,7 @@ class Polygon(Shape2D):
 			for segment in self.segments:
 				if object in segment:
 					for point in object.intersects(segment):
-						if not point.axes in list(map(lambda point: point.axes, points)):
+						if not point in points:
 							points.append(point)
 
 			return points
@@ -340,13 +341,13 @@ class Polygon(Shape2D):
 	def center_of_mass(self) -> Point:
 		y = [ vertice.y for vertice in self.vertices ]
 		x = [ vertice.x for vertice in self.vertices ]
-		return Point(sum(x)/len(x), sum(y)/len(y), name=f'{self.name}_center')
+		return Point(to_fraction(sum(x), len(x)), to_fraction(sum(y), len(y)), name=f'{self.name}_center')
 
 	@property
 	def area(self) -> float:
-		return abs(sum([
+		return to_fraction(abs(sum([
 			segment.pos1[0] * segment.pos2[1] - segment.pos1[1] * segment.pos2[0] for segment in self.segments
-		])) / 2
+		])), 2)
 	@property
 	def perimeter(self) -> float:
 		return sum([segment.length for segment in self.segments])
@@ -518,8 +519,8 @@ class Triangle(Polygon):
 		p2 = Point[0, length]
 
 		l1 = Line(p1, p2)
-		l2 = Line.by_angle(p1, ang1)
-		l3 = Line.by_angle(p2, abs(180 - ang1))
+		l2 = Line.by_angle(ang1, pos1=p1)
+		l3 = Line.by_angle(abs(180 - ang1), pos1=p2)
 
 		p3 = l2.intersects(l3)[0]
 		return Triangle(p1, p2, p3, name=name, pos=pos, segment_object=segment_object, multidimension=multidimension)
@@ -533,7 +534,7 @@ class Triangle(Polygon):
 		p1 = Point[0, 0]
 		p2 = Point[len1, 0]
 
-		segment = Segment.by_angle(p1, angle, len2)
+		segment = Segment.by_angle(angle, len2, pos1=p1)
 		return Triangle(p1, p2, segment.pos2, name=name, pos=pos, segment_object=segment_object, multidimension=multidimension)
 
 
@@ -546,14 +547,14 @@ class Rhombus(Polygon):
 		self.diagonal_x = diagonal_x
 		self.diagonal_y = diagonal_y
 
-		self.segment_x = Segment(self.center - [diagonal_x/2, 0], self.center + [diagonal_x/2, 0])
-		self.segment_y = Segment(self.center + [0, diagonal_y/2], self.center + [diagonal_x/2, 0])
+		self.segment_x = Segment(self.center - [to_fraction(diagonal_x,2), 0], self.center + [to_fraction(diagonal_x,2), 0])
+		self.segment_y = Segment(self.center + [0, to_fraction(diagonal_y,2)], self.center + [to_fraction(diagonal_x,2), 0])
 
 		super().__init__(
-			self.center + [0, diagonal_y/2],
-			self.center - [diagonal_x/2, 0],
-			self.center - [0, diagonal_y/2],
-			self.center + [diagonal_x/2, 0],
+			self.center + [0, to_fraction(diagonal_y, 2)],
+			self.center - [to_fraction(diagonal_x, 2), 0],
+			self.center - [0, to_fraction(diagonal_y, 2)],
+			self.center + [to_fraction(diagonal_x, 2), 0],
 		name=name, pos=pos, segment_object=segment_object, multidimension=multidimension)
 
 
@@ -579,11 +580,16 @@ class Circle(Shape2D):
 
 		if isinstance(object, Point):
 			if check_inside:
-				return [object] if round(Segment(self.center, object).length, 10) <= self.radius + EPSILON else []
+				if object != self.center:
+					return [object] if round(Segment(self.center, object).length, 10) <= self.radius + EPSILON else []
+				return [object]
 			else:
-				return [object] if round(Segment(self.center, object).length - self.radius, 10) <= EPSILON else []
+				if object != self.center:
+					return [object] if round(Segment(self.center, object).length - self.radius, 10) <= EPSILON else []
+				return []
 
 		elif isinstance(object, (Segment, Ray, Line, Vector)):
+			res = []
 			if object.k:
 				# (1+k**2)x**2 + 2(km−k⋅self.x−self.y)x + (m**2+self.y**2−2mb−r**2+b**2)=0
 				eq = QuadraticEq(
@@ -591,13 +597,21 @@ class Circle(Shape2D):
 					b = 2 * (object.k * object.m - object.k * self.y - self.x),
 					c = object.m**2 + self.x**2 - 2 * object.m * self.y + self.y**2 - self.radius**2,
 				)
-				return [ Point(x, object.y_from_x(x)) for x in eq.solve() if Point(x, object.y_from_x(x)) in object ]
+				res = [ Point(x, object.y_from_x(x)) for x in eq.solve() if Point(x, object.y_from_x(x)) in object ]
 			elif object.direction in ['horizontal', 'left', 'right'] and self.x_from_y(object.pos1.y) != None:
-				return [ Point(x, object.pos1.y) for x in self.x_from_y(object.pos1.y) if Point(x, object.pos1.y) in object ]
+				res = [ Point(x, object.pos1.y) for x in self.x_from_y(object.pos1.y) if Point(x, object.pos1.y) in object ]
 			elif object.direction in ['vertical', 'up', 'down'] and self.y_from_x(object.pos1.x) != None:
-				return [ Point(object.pos1.x, y) for y in self.y_from_x(object.pos1.x) if Point(object.pos1.x, y) in object ]
+				res = [ Point(object.pos1.x, y) for y in self.y_from_x(object.pos1.x) if Point(object.pos1.x, y) in object ]
 			elif object.direction == 'point':
-				return object.pos1 if self.intersects(object.pos1) else []
+				res = object.pos1 if self.intersects(object.pos1) else []
+
+			if not res:
+				if object.pos1 in self:
+					return [object.pos1.copy()]
+				elif object.pos1 in self:
+					return [object.pos1.copy()]
+
+			return res
 
 		elif isinstance(object, Polygon):
 			res = []
@@ -624,16 +638,18 @@ class Circle(Shape2D):
 					return res[0] if res[0] in self and res[0] in object else []
 
 				elif distance.length < self.radius + object.radius:
-					a = (self.radius**2 - object.radius**2 + distance.length**2) / (2 * distance.length)
+					a = to_fraction(self.radius**2 - object.radius**2 + distance.length**2, 2 * distance.length)
 					if self.radius**2 - a**2 > 0 and object.radius**2 - a**2:
 						h = sqrt(self.radius**2 - a**2) if self.radius**2 - a**2 > 0 else sqrt(object.radius**2 - a**2)
 						intercenter = Point(
-							self.x + a * (object.x - self.x) / distance.length,
-							self.y + a * (object.y - self.y) / distance.length,
+							to_fraction(self.x + a * (object.x - self.x), distance.length),
+							to_fraction(self.y + a * (object.y - self.y), distance.length),
 						)
 						return [
-							Point(intercenter.x + h*(object.y - self.y) / distance.length, intercenter.y - h*(object.x - self.x) / distance.length),
-							Point(intercenter.x - h*(object.y - self.y) / distance.length, intercenter.y + h*(object.x - self.x) / distance.length),
+							Point(to_fraction(intercenter.x + h*(object.y - self.y), distance.length),
+								  to_fraction(intercenter.y - h*(object.x - self.x), distance.length)),
+							Point(to_fraction(intercenter.x - h*(object.y - self.y), distance.length),
+								  to_fraction(intercenter.y + h*(object.x - self.x), distance.length)),
 						]
 					return []
 
@@ -810,16 +826,20 @@ class Oval(Shape):
 
 		if isinstance(object, Point):
 			return [object] if (
-				( (object.x - self.center.x)**2 ) / self.radius_x**2 + ( (object.y - self.center.y)**2 ) / self.radius_y**2
+				to_fraction(
+					(object.x - self.center.x)**2, self.radius_x**2
+				) + to_fraction(
+					(object.y - self.center.y)**2, self.radius_y**2
+				)
 			) <= 1 else []
 		elif isinstance(object, (Segment, Ray, Line, Vector)):
 			x1, y1 = object.pos1.x - self.center.x, object.pos1.y - self.center.y
 			x2, y2 = object.pos2.x - self.center.x, object.pos2.y - self.center.y
 
 			dx, dy = x2 - x1, y2 - y1
-			A = dx**2 / self.radius_x**2 + dy**2 / self.radius_y**2
-			B = 2 * x1 * dx / self.radius_x**2 + 2 * y1 * dy / self.radius_y**2
-			C = x1**2 / self.radius_x**2 + y1**2 / self.radius_y**2 - 1
+			A = to_fraction(dx**2, self.radius_x**2) + to_fraction(dy**2, self.radius_y**2)
+			B = to_fraction(2 * x1 * dx, self.radius_x**2) + to_fraction(2 * y1 * dy, self.radius_y**2)
+			C = to_fraction(x1**2, self.radius_x**2) + to_fraction(y1**2, self.radius_y**2) - 1
 
 			D = B**2 - 4 * A * C
 			if D < 0:
@@ -830,8 +850,8 @@ class Oval(Shape):
 				else:
 					return []
 			else:
-				t1 = (-B + sqrt(D)) / (2 * A)
-				t2 = (-B - sqrt(D)) / (2 * A)
+				t1 = to_fraction(-B + sqrt(D), 2 * A)
+				t2 = to_fraction(-B - sqrt(D), 2 * A)
 				return [ pos for pos in [
 					Point(x1 + t1 * dx + self.center.x, y1 + t1 * dy + self.center.y),
 					Point(x1 + t2 * dx + self.center.x, y1 + t2 * dy + self.center.y)

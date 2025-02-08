@@ -2,3 +2,7 @@ __pycache__
 notes.py
 icon.png
 geopy.zip
+.idea
+.venv
+tests/__pycache__
+tests/.pytest_cache
