@@ -58,7 +58,7 @@ class AxesList(list):
 class Primitive:
 	...
 
-letters = 'xyz' + ABCD[:-3]
+letters = 'xyz' + ''.join(list(reversed(ABCD[:-3]))) # X, Y, Z, w, v, u, ...
 
 class PointMeta(type):
 	def __getitem__(cls, pos):
@@ -923,8 +923,8 @@ class Ray(Line):
 	def z(self) -> float:
 		return self.pos1.z
 	@property
-	def a(self) -> float:
-		return self.pos1.a
+	def w(self) -> float:
+		return self.pos1.w
 
 class VectorMeta(type):
 	def __getitem__(cls, pos):
