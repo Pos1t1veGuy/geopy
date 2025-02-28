@@ -328,7 +328,6 @@ class Scene3D(Scene):
 			for line in self.lines:
 				self.ax.plot([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], [line.pos1.z, line.pos2.z], color=line.color)
 
-		print(self.points, self.objects)
 		plt.show()
 
 

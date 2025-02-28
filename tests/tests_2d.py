@@ -122,12 +122,10 @@ def test_circles_intersection():
 		c2 = Circle([0,0], 4)
 		path = Circle(c1.center, c1.radius+2)
 
-		for i in range(90, 360):
-			new_circle_center = path(Fraction(i, 360))
-			print(new_circle_center)
+		for degree in range(89, 360):
+			new_circle_center = path(Fraction(degree, 360))
 			c2.to_pos(new_circle_center)
 			ions = c1.intersects(c2, check_inside=False)
-			print(i)
 			assert len(ions) == 2 and ions[0] != ions[1], f'Circles intersect in {len(ions)} points but must to intersect in 2 different points'
 		
 		c2.to_pos(c1.center)
@@ -202,7 +200,6 @@ def test_line_height():
 # Сделать тест на пренадлежность точки прямой, отрезку и лучу
 
 if __name__ == '__main__':
-	# tests = { key: value for key, value in globals().items() if key.startswith('test_') and callable(value) }
-	# for test in tests.values():
-	# 	test()
-	test_circles_intersection()
+	tests = { key: value for key, value in globals().items() if key.startswith('test_') and callable(value) }
+	for test in tests.values():
+		test()

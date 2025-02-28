@@ -596,14 +596,7 @@ class Circle(Shape2D):
 					b = 2 * (object.k * object.m - object.k * self.y - self.x),
 					c = object.m**2 + self.x**2 - 2 * object.m * self.y + self.y**2 - self.radius**2,
 				)
-				res = []
-				for X in eq.solve():
-					x = round(X, 6)
-					for y in self.y_from_x(x):
-						p = Point(x, y)
-						print(p, p in object)
-						if not p in res and self.intersects(p):# and p in object:
-							res.append(p)
+				res = [ Point(x, object.y_from_x(x)) for x in eq.solve() if Point(x, object.y_from_x(x)) in object ]
 			elif object.direction in ['horizontal', 'left', 'right'] and self.x_from_y(object.pos1.y) != None:
 				res = [ Point(x, object.pos1.y) for x in self.x_from_y(object.pos1.y) if Point(x, object.pos1.y) in object ]
 			elif object.direction in ['vertical', 'up', 'down'] and self.y_from_x(object.pos1.x) != None:
@@ -644,7 +637,7 @@ class Circle(Shape2D):
 
 				if distance.length == self.radius + object.radius:
 					res = self.intersects(distance)
-					return res[0] if res[0] in self and res[0] in object else []
+					return res if res[0] in self and res[0] in object else []
 
 				elif distance.length < self.radius + object.radius:
 					a = to_fraction(self.radius**2 - object.radius**2 + distance.length**2, 2 * distance.length)
@@ -813,8 +806,6 @@ class Circle(Shape2D):
 		from .scene import Scene2D
 		right_point = self.center + Point[self.radius, 0]
 		ray = Ray.by_angle(num * 360, pos1=self.center)
-		Scene2D(self, ray, *self.intersects(ray, check_inside=False)).show()
-		print('!!!', self.intersects(ray, check_inside=False))
 		return self.intersects(ray, check_inside=False)[0]
 	
 	def __str__(self):

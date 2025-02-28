@@ -6,3 +6,4 @@ geopy.zip
 .venv
 tests/__pycache__
 tests/.pytest_cache
+tests/AssertImage.png

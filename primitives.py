@@ -1,5 +1,5 @@
 from typing import *
-from math import sqrt, acos, degrees, tan, radians
+from math import sqrt, acos, cos, sin, degrees, tan, radians
 from string import ascii_lowercase
 from fractions import Fraction
 
@@ -726,9 +726,9 @@ class Line(Primitive):
 		if isinstance(pos1, (tuple, list, np.ndarray)):
 			pos1 = Point(*pos1)
 
-		k = tan(radians(angle))
-		m = pos1.y - pos1.x * k
-		return Line.by_func( lambda x: k * x + m ).at_pos(pos1)
+		dx = cos(radians(angle))
+		dy = sin(radians(angle))
+		return Line(pos1, pos1 + [dx, dy])
 
 	def __contains__(self, object):
 		return self.intersects(object)
@@ -792,11 +792,10 @@ class Segment(Line):
 		if isinstance(pos1, (tuple, list, np.ndarray)):
 			pos1 = Point(*pos1)
 
-		k = tan(radians(angle))
-		m = pos1.y - pos1.x * k
-		func = lambda x: k * x + m
-		pos1 = Point[1.0,func(1)]
-		line = Line.by_func(func)
+		dx = cos(radians(angle))
+		dy = sin(radians(angle))
+
+		line = Line(pos1, pos1 + [dx, dy])
 		vector = line.vector.at_pos(pos1).normalize
 
 		return Segment(pos1, (vector * length).pos2, name=name).at_pos(pos1)
@@ -817,12 +816,15 @@ class Ray(Line):
 			object = Point(*object)
 
 		if isinstance(object, Point):
-			direction = self.vector.to_zero
-			to_point = object - self.pos1
-			intersects_line = super().intersects(object)
-			print(self, self.pos1.axes, self.pos2.axes)
-			print(np.dot(np.array(list(direction.pos2)), np.array(list(to_point))), intersects_line, super())
-			return np.dot(np.array(list(direction.pos2)), np.array(list(to_point))) >= 0 and intersects_line
+			for i in range(self.dimension):
+				if self.vector.pos2[i] == 0:
+					if object[i] != self.pos1[i]:
+						return []
+				else:
+					t = to_fraction(object[i] - self.pos1[i], self.vector.pos2[i])
+					if t < 0:
+						return []
+			return super().intersects(object)
 
 		elif hasattr(object, 'intersects') and not isinstance(object, Primitive):
 			return object.intersects(self)
@@ -895,14 +897,9 @@ class Ray(Line):
 		if isinstance(pos1, (tuple, list, np.ndarray)):
 			pos1 = Point(*pos1)
 
-		k = round(tan(radians(angle)), round_to)
-		print('kkkk:', k)
-		m = pos1.y - pos1.x * k
-		func = lambda x: k * x + m
-		line = Line.by_func(func)
-		vector = line.vector.at_pos(pos1).normalize
-
-		return Ray(pos1, vector.pos2, name=name).at_pos(pos1)
+		dx = cos(radians(angle))
+		dy = sin(radians(angle))
+		return Ray(pos1, pos1 + [dx, dy], name=name)
 
 	@property
 	def pos(self) -> float:
@@ -1328,7 +1325,6 @@ class Space(AffineSpace):
 		super().__init__(origin, points, name=name)
 
 		if any([ not self.vectors[i].is_perpendicular(self.vectors[i-1]) for i in range(len(self.vectors)) ]):
-			print(self.vectors)
 			raise ConstructError(f'Vectors must be perpendiculars')
 		if len( set([ round(self.vectors[i].length, 8) for i in range(len(self.vectors)) ]) ) > 1:
 			raise ConstructError(f'Vectors must have equal lengths')
