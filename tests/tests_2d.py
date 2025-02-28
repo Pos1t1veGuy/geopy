@@ -116,11 +116,93 @@ def test_ray_segment_intersects_circle():
 		Scene2D(circle, segm, *ions).save(output_image_path)
 		raise e
 
+def test_circles_intersection():
+	try:
+		c1 = Circle([1,1], 5)
+		c2 = Circle([0,0], 4)
+		path = Circle(c1.center, c1.radius+2)
+
+		for i in range(90, 360):
+			new_circle_center = path(Fraction(i, 360))
+			print(new_circle_center)
+			c2.to_pos(new_circle_center)
+			ions = c1.intersects(c2, check_inside=False)
+			print(i)
+			assert len(ions) == 2 and ions[0] != ions[1], f'Circles intersect in {len(ions)} points but must to intersect in 2 different points'
+		
+		c2.to_pos(c1.center)
+		ions = c2.intersects(c1, check_inside=False)
+		assert len(ions) == 0, f'Circles intersect in {len(ions)} points but must to intersect in 0 points'
+		ions = c2.intersects(c1, check_inside=True)
+		assert len(ions) == 1 and ions[0] == c1.center == c2.center, f'Circles intersect in {len(ions)} points but must to intersect in 1 point - center of Circles'
+
+	except AssertionError as e:
+		for i in [c1, c2, ions]:
+			print(i)
+		Scene2D(c1, c2, *ions).save(output_image_path)
+		raise e
+
+def test_line_height():
+	try:
+		point = Point[1,1]
+
+		for degree in range(180):
+			line = Line.by_angle(degree)
+			if degree != 45: # Line not intersects [0,0]
+				height = point.height_to(line)
+				l = line
+			else: # Line intersects [0,0]
+				try:
+					height = point.height_to(line)
+				except Exception as ex:
+					assert isinstance(ex, ConstructError), f'There should be an ConstructError when turning 45 degrees'
+				l = line+[1,0]
+				height = point.height_to(l)
+
+			ions = l.intersects(height)
+			assert (height.pos2 in l and height.pos1 == point and
+				l.is_perpendicular(height) and len(ions) == 1), f'Height must to intersect in one point and be perpendicular'
+
+	except AssertionError as e:
+		for i in [l, height, ions]:
+			print(i)
+		Scene2D(l, height, *ions).save(output_image_path)
+		raise e
+
+def test_line_height():
+	try:
+		point = Point[1,1]
+
+		for degree in range(180):
+			line = Line.by_angle(degree)
+			if degree != 45: # Line not intersects [0,0]
+				height = point.height_to(line)
+				l = line
+			else: # Line intersects [0,0]
+				try:
+					height = point.height_to(line)
+				except Exception as ex:
+					assert isinstance(ex, ConstructError), f'There should be an ConstructError when turning 45 degrees'
+				l = line+[1,0]
+				height = point.height_to(l)
+
+			ions = l.intersects(height)
+			assert (height.pos2 in l and height.pos1 == point and
+				l.is_perpendicular(height) and len(ions) == 1), f'Height must to intersect in one point and be perpendicular'
+
+	except AssertionError as e:
+		for i in [l, height, ions]:
+			print(i)
+		Scene2D(l, height, *ions).save(output_image_path)
+		raise e
+
 
 # TODO:
-# Сделать тест на Полигон (прямоугольник и непонятная хренатень) и прямую
-# Сделать тест на Прямые (параллельные осям и нет) и луч на 360
 # Сделать тест на две прямые и два отрезка
-# Сделать тест на высоту от точки до прямой
 # Сделать тест на пренадлежность точки прямой, отрезку и лучу
-# Сделать тест на окружности
+
+if __name__ == '__main__':
+	# tests = { key: value for key, value in globals().items() if key.startswith('test_') and callable(value) }
+	# for test in tests.values():
+	# 	test()
+	test_circles_intersection()

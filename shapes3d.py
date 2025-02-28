@@ -3,13 +3,8 @@ from itertools import product
 
 from .shapes2d import *
 from .primitives import *
-
-
-class Shape3D(Shape):
-	dimension = 3
-
-	def intersection_area(self, object: Union[Primitive, Shape, Point, tuple, list]) -> 'Shape3D':
-		...
+from .exceptions import *
+from .base_shapes import *
 
 
 class Parallelepiped(Shape3D):
@@ -23,7 +18,7 @@ class Parallelepiped(Shape3D):
 		self.pos1, self.pos2 = pos1, pos2
 
 		if self.dimension <= 2:
-			raise ValueError(f'Vertices must to be not on the 2D plane')
+			raise ConstructError(f'Vertices must to be not on the 2D plane')
 
 		self.vertices = self._vertices(pos1, pos2)
 		self.vector_x = Vector(pos1, pos2) + Vector(pos2, Point(pos1.x, pos1.y, pos2.z))
@@ -82,7 +77,7 @@ class Parallelepiped(Shape3D):
 		elif isinstance(object, Shape):
 			point = object.center_of_mass
 		else:
-			raise ValueError(f'"inside" method takes Union[Primitive, Shape, Point, tuple, list], not {object}')
+			raise IntersectionError(f'"inside" method takes Union[Primitive, Shape, Point, tuple, list], not {object}')
 
 		rays = {
 			Ray(point, point + [0, 1]): [],
@@ -164,7 +159,7 @@ class Tetrahedron(Shape3D):
 	def __init__(self, *args: Union['Point', list, tuple], name: str = 'Tetrahedron'):
 		self.vertices = []
 		if len(args) != 4:
-			raise ValueError(f'Tetrahedron must contain 4 vertices, not {len(args)}')
+			raise ConstructError(f'Tetrahedron must contain 4 vertices, not {len(args)}')
 
 		for vertice in args:
 			if isinstance(vertice, (list, tuple)):
@@ -175,7 +170,7 @@ class Tetrahedron(Shape3D):
 		self.name = name
 
 		if self.dimension <= 2:
-			raise ValueError(f'Vertices must to be not on the 2D plane')
+			raise ConstructError(f'Vertices must to be not on the 2D plane')
 
 	def intersects(self, object: Union[Primitive, Shape, Point, tuple, list], check_inside: bool = True):
 		if isinstance(object, (tuple, list)):
@@ -203,7 +198,7 @@ class Tetrahedron(Shape3D):
 		elif isinstance(object, Shape):
 			point = object.center_of_mass
 		else:
-			raise ValueError(f'"inside" method takes Union[Primitive, Shape, Point, tuple, list], not {object}')
+			raise IntersectionError(f'"inside" method takes Union[Primitive, Shape, Point, tuple, list], not {object}')
 
 		rays = {
 			Ray(point, point + [0, 1]): [],
