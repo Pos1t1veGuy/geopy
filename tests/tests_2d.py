@@ -158,35 +158,8 @@ def test_line_height():
 				height = point.height_to(l)
 
 			ions = l.intersects(height)
-			assert (height.pos2 in l and height.pos1 == point and
-				l.is_perpendicular(height) and len(ions) == 1), f'Height must to intersect in one point and be perpendicular'
-
-	except AssertionError as e:
-		for i in [l, height, ions]:
-			print(i)
-		Scene2D(l, height, *ions).save(output_image_path)
-		raise e
-
-def test_line_height():
-	try:
-		point = Point[1,1]
-
-		for degree in range(180):
-			line = Line.by_angle(degree)
-			if degree != 45: # Line not intersects [0,0]
-				height = point.height_to(line)
-				l = line
-			else: # Line intersects [0,0]
-				try:
-					height = point.height_to(line)
-				except Exception as ex:
-					assert isinstance(ex, ConstructError), f'There should be an ConstructError when turning 45 degrees'
-				l = line+[1,0]
-				height = point.height_to(l)
-
-			ions = l.intersects(height)
-			assert (height.pos2 in l and height.pos1 == point and
-				l.is_perpendicular(height) and len(ions) == 1), f'Height must to intersect in one point and be perpendicular'
+			assert (height.pos2 in l and height.pos1 == point and l.is_perpendicular(height) and
+				len(ions) == 1), f'Height must to intersect in one point and be perpendicular'
 
 	except AssertionError as e:
 		for i in [l, height, ions]:

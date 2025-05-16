@@ -91,7 +91,7 @@ class Scene2D(Scene):
 		for point in polygon.vertices:
 			self.points.append(point)
 
-		polygon = MPLPolygon([(point.x, point.y) for point in polygon.vertices], edgecolor=polygon.segments_color, facecolor=polygon.bg_color, alpha=polygon.alpha)
+		polygon = MPLPolygon([(point.x, point.y) for point in polygon.vertices], edgecolor=polygon.segments_color, facecolor=polygon.color, alpha=polygon.alpha)
 		self.ax.add_patch(polygon)
 
 	def add_segment(self, segment: Segment):
@@ -277,7 +277,7 @@ class Scene3D(Scene):
 			self.points.append(point)
 
 		verts = [[ tuple([float(axis) for axis in point]) for point in eq_len_axeslists( *map(lambda point: point.axes, polygon.vertices), dimension=3 ) ]]
-		polygon = Poly3DCollection(verts, alpha=polygon.alpha, facecolor=polygon.bg_color, edgecolor=polygon.segments_color, color=polygon.color)
+		polygon = Poly3DCollection(verts, alpha=polygon.alpha, facecolor=polygon.color, edgecolor=polygon.segments_color, color=polygon.color)
 		self.ax.add_collection3d(polygon)
 
 	def draw_line(self, line: Line):
@@ -298,10 +298,16 @@ class Scene3D(Scene):
 			max_point = Point[max_x, max_y, max_z]
 
 			if max_point.axes != min_point.axes:
-				if max_point.x != min_point.x and max_point.y != min_point.y and max_point.z != min_point.z:
-					scene_rect = Box(max_point, min_point)
-				else:
-					scene_rect = Rectangle(max_point, min_point)
+				if max_point.x == min_point.x: 
+					max_point.x += 1
+					min_point.x -= 1
+				if max_point.y == min_point.y:
+					max_point.y += 1
+					min_point.y -= 1
+				if max_point.z == min_point.z:
+					max_point.z += 1
+					min_point.z -= 1
+				scene_rect = Box(max_point, min_point)
 			else:
 				scene_rect = Box(max_point, [0,0,0])
 
@@ -331,7 +337,7 @@ class Scene3D(Scene):
 		plt.show()
 
 
-class Composite(Shape):
+class Composite(Shape): # TODO: finish boolean
 	def __init__(self, *args: List[Shape], name: str = 'Composite', pos: Point = [0,0], mode='intersection'):
 		self.pos = Point(*pos) if isinstance(pos, (tuple, list)) else (pos if isinstance(pos, Point) else Point(0,0))
 		self.name = name
@@ -447,7 +453,7 @@ class Composite(Shape):
 	def __repr__(self):
 		return f'{self.__class__.__name__}({self.shapes}, name="{self.name}", pos={self.pos})'
 
-class PrimitiveGroup:
+class PrimitiveGroup: # TODO: finish boolean
 	def __init__(self, *args: List[Primitive], name: str = 'PrimitiveGroup'):
 		self.primitives = []
 		self.name = name

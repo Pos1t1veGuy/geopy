@@ -21,9 +21,9 @@ class Parallelepiped(Shape3D):
 			raise ConstructError(f'Vertices must to be not on the 2D plane')
 
 		self.vertices = self._vertices(pos1, pos2)
-		self.vector_x = Vector(pos1, pos2) + Vector(pos2, Point(pos1.x, pos1.y, pos2.z))
-		self.vector_y = Vector(pos1, pos2) + Vector(pos2, Point(pos2.x, pos1.y, pos1.z))
-		self.vector_z = Vector(pos1, pos2) + Vector(pos2, Point(pos1.x, pos2.y, pos1.z))
+		self.vector_x = Vector(pos1, Point(pos1.x, pos1.y, pos2.z))
+		self.vector_y = Vector(pos1, Point(pos2.x, pos1.y, pos1.z))
+		self.vector_z = Vector(pos1, Point(pos1.x, pos2.y, pos1.z))
 
 	def _vertices(self, pos1: 'Point', pos2: 'Point') -> List['Point']:
 		return [Point(x, y, z) for x, y, z in product([pos1.x, pos2.x], [pos1.y, pos2.y], [pos1.z, pos2.z])]
@@ -95,13 +95,21 @@ class Parallelepiped(Shape3D):
 
 	@property
 	def edges(self) -> List['Polygon']:
+		# print([
+		# 	(self.vertices[0], self.vertices[1], self.vertices[3], self.vertices[2]),  # down
+		# 	# (self.vertices[4], self.vertices[5], self.vertices[7], self.vertices[6]),  # up
+		# 	# (self.vertices[0], self.vertices[1], self.vertices[5], self.vertices[4]),  # front
+		# 	# (self.vertices[2], self.vertices[3], self.vertices[7], self.vertices[6]),  # back
+		# 	# (self.vertices[0], self.vertices[2], self.vertices[6], self.vertices[4]),  # left
+		# 	# (self.vertices[1], self.vertices[3], self.vertices[7], self.vertices[5]),  # right
+		# ])
 		return [
-			Polygon(self.vertices[0], self.vertices[1], self.vertices[3], self.vertices[2], name='Polygon0', multidimension=True),  # down
-			Polygon(self.vertices[4], self.vertices[5], self.vertices[7], self.vertices[6], name='Polygon1', multidimension=True),  # up
-			Polygon(self.vertices[0], self.vertices[1], self.vertices[5], self.vertices[4], name='Polygon2', multidimension=True),  # front
-			Polygon(self.vertices[2], self.vertices[3], self.vertices[7], self.vertices[6], name='Polygon3', multidimension=True),  # back
-			Polygon(self.vertices[0], self.vertices[2], self.vertices[6], self.vertices[4], name='Polygon4', multidimension=True),  # left
-			Polygon(self.vertices[1], self.vertices[3], self.vertices[7], self.vertices[5], name='Polygon5', multidimension=True),  # right
+			Polygon(self.vertices[0], self.vertices[1], self.vertices[3], self.vertices[2], name='Polygon0'),  # down
+			# Polygon(self.vertices[4], self.vertices[5], self.vertices[7], self.vertices[6], name='Polygon1'),  # up
+			# Polygon(self.vertices[0], self.vertices[1], self.vertices[5], self.vertices[4], name='Polygon2'),  # front
+			# Polygon(self.vertices[2], self.vertices[3], self.vertices[7], self.vertices[6], name='Polygon3'),  # back
+			# Polygon(self.vertices[0], self.vertices[2], self.vertices[6], self.vertices[4], name='Polygon4'),  # left
+			# Polygon(self.vertices[1], self.vertices[3], self.vertices[7], self.vertices[5], name='Polygon5'),  # right
 		]
 
 	@property
@@ -217,11 +225,11 @@ class Tetrahedron(Shape3D):
 	@property
 	def edges(self) -> List['Polygon']:
 		return [
-			Triangle(self.vertices[0], self.vertices[1], self.vertices[2], name='Polygon0', multidimension=True),
-			Triangle(self.vertices[0], self.vertices[1], self.vertices[3], name='Polygon1', multidimension=True),
+			Triangle(self.vertices[0], self.vertices[1], self.vertices[2], name='Polygon0'),
+			Triangle(self.vertices[0], self.vertices[1], self.vertices[3], name='Polygon1'),
 
-			Triangle(self.vertices[2], self.vertices[3], self.vertices[0], name='Polygon2', multidimension=True),
-			Triangle(self.vertices[2], self.vertices[3], self.vertices[1], name='Polygon3', multidimension=True),
+			Triangle(self.vertices[2], self.vertices[3], self.vertices[0], name='Polygon2'),
+			Triangle(self.vertices[2], self.vertices[3], self.vertices[1], name='Polygon3'),
 		]
 
 	@property
