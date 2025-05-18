@@ -1290,16 +1290,31 @@ class AffineSpace:
 		if isinstance(point, (list, tuple, np.ndarray)):
 			point = Point(*point)
 
-		basis_matrix = np.array([list(vec.pos2.axes) + [0] * (self.dimension - vec.pos2.dimension) for vec in self.vectors])
-		return Point(self.origin.axes + np.dot(basis_matrix.T, point.axes), f'{self.name}_global', color=point.color, alpha=point.alpha)
+		basis_matrix = np.array([list(vec.pos2.axes) + [0] * (self.dimension - vec.pos2.dimension) for vec in self.vectors]).T
+		eq = [0] * (point.dimension - len(basis_matrix[0]))
+
+		matrix = []
+		for i, axis in enumerate(basis_matrix):
+			matrix.append([*axis, *eq])
+
+		dot = np.dot(matrix, point.axes)
+		return Point(list(self.origin.axes + Point[dot]), name=f'{self.name}_global', color=point.color, alpha=point.alpha)
 
 	def intersects(self, object: Union[Primitive, Point, list, tuple]) -> List[Point]:
 		if isinstance(object, (list, tuple, np.ndarray)):
 			object = Point(*object)
 
 		if isinstance(object, Point):
-			# Point intersects Space if point ...
-			return [object] if len(self.point_to_local(object).axes) == self.dimension else []
+			'''
+			There are 2 matrices: M and N. M is a matrix of vectors of Space, and N is the same matrix but with the addition of a vector from the input point
+			to the origin of the point of space. If the ranks of the matrices are equal, then the point lies in space, otherwise - no.
+			M - mat1, N - mat2.
+			'''
+			dim = max(object.dimension, self.origin.dimension, *[v.dimension for v in self.vectors])
+
+			mat1 = [list(v.pos2) + [0] * (dim - v.pos2.dimension) for v in self.vectors]
+			mat2 = mat1 + [object - self.origin]
+			return [object] if matrix_rank(mat1) == matrix_rank(mat2) else []
 
 		elif isinstance(object, (Line, Ray, Segment, Vector)):
 			# Line intersects Space if l.pos1 + l.vector * t = origin + vec1 * x + vec2 * y ... + vecN * N
@@ -1335,7 +1350,7 @@ class AffineSpace:
 			point = Point(point)
 			
 		shift = point - self.origin
-		return self.__class__(self.origin + shift, self.vectors, name=self.name)
+		return self.__class__(self.origin + shift, self.vectors, name=self.name) # TODO: пространство то двигается, а внутренние объекты нет =(
 
 	# Gives orthogonal vectors to space
 	def ortovectors_by_dim(self, dimension: int) -> List['Vector']:
@@ -1389,7 +1404,7 @@ class AffineSpace:
 
 	@property
 	def as_geometry(self) -> str:
-		return f'{self.vector} * (x - {self.origin})'
+		return f'Sp = {self.origin} + ' + " + ".join([ f'{letters[i]}*{self.vectors[i].to_zero}' for i in range(self.dimension) ])
 
 	def __contains__(self, object):
 		return self.intersects(object)
@@ -1405,7 +1420,9 @@ class Space(AffineSpace):
 	def __init__(self, origin: 'Point', vectors: Union[List['Point'], List['Vector']], **kwargs):
 		super().__init__(origin, vectors, **kwargs)
 
-		if any([ not self.vectors[i].is_perpendicular(self.vectors[i-1]) for i in range(len(self.vectors)) ]):
-			raise ConstructError(f'Vectors must be perpendiculars')
-		if len( set([ round(self.vectors[i].length, 8) for i in range(len(self.vectors)) ]) ) > 1:
-			raise ConstructError(f'Vectors must have equal lengths')
+		l = round(self.vectors[0].length, 8)
+		for i in range(len(self.vectors)):
+			if not self.vectors[i].is_perpendicular(self.vectors[i-1]):
+				raise ConstructError(f'Vectors must be perpendiculars')
+			if round(self.vectors[i].length, 8) != l:
+				raise ConstructError(f'Vectors must have equal lengths')

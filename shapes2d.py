@@ -322,7 +322,7 @@ class Polygon(Shape2D):
 		origin = self.vertices[0]
 		segments = self.segments_by_fromto_point(origin)
 		perps = gram_schmidt([segments[0].to_vector.to_zero, segments[1].to_vector.to_zero])
-		return Space(origin, perps, name=f'{self.name}_space').at_pos(self.center_of_mass)
+		return Space(origin, perps, name=f'{self.name}_space').at_pos(self.center_of_mass).at_pos([0])
 
 	@property
 	def dimension(self) -> int:
