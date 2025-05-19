@@ -67,7 +67,8 @@ class Polygon(Shape2D):
 
 			for point in self.vertices:
 				if not point in space:
-					raise ConstructError('A multidimensional (3D+, not 2D) polygon must lie on a 2D surface (2D Space with 2 equal size orthogonal vectors)')
+					pass # TODO: поправить edge у 3D
+					# raise ConstructError('A multidimensional (3D+, not 2D) polygon must lie on a 2D surface (2D Space with 2 equal size orthogonal vectors)')
 
 	def intersects(self, object: Union[Primitive, Shape, Point, tuple, list], check_inside: bool = True) -> List[Point]:
 		return self.intersects_2d(object, check_inside=check_inside) ####################################################

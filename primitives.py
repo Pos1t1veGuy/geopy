@@ -70,11 +70,16 @@ class Point(Primitive, metaclass=PointMeta):
 			*(p1 + np.array(np.dot(np.array(axes) - p1, line_vector) / np.dot(line_vector, line_vector)) * line_vector),
 			name=f'{self.name}_proj'
 		)
-	# Returns a Point that makes with self Point a new Line that makes 90 degrees Angle to space
+	# Returns a Point that makes with self Point a new Line that makes perpendicular to Space
 	def project_to_space(self, space: 'AffineSpace') -> 'Point':
-		vecs = space.ortovectors_by_dim(space.dimension + 1)
-		# returns one vector because only one vector with N-1 dimension may be ortogonal to N dimension space
-		return vecs[0].at_pos(self).pos2
+		normal = space.normal
+		p = list(self - space.origin)
+		ln = list(normal.to_zero.pos2)
+		dot = float(np.dot(p, ln) / np.dot(ln, ln))
+		if dot == 0:
+			return self
+		else:
+			return (normal * dot).pos2
 
 	def project_to(self, dimension: int) -> 'Point':
 		return self.__class__(self.axes[:dimension], name=f'{self.name}_proj')
@@ -1300,6 +1305,43 @@ class AffineSpace:
 		dot = np.dot(matrix, point.axes)
 		return Point(list(self.origin.axes + Point[dot]), name=f'{self.name}_global', color=point.color, alpha=point.alpha)
 
+	def get_normal(self) -> Vector:
+		matrix = [v.pos2.axes + [Fraction(0)] * (self.dimension - v.pos2.dimension + 1) for v in self.vectors]
+		num_rows = len(matrix)
+		num_cols = len(matrix[0])
+		
+		pivot_cols = []
+		m = [row[:] for row in matrix]
+		rank = 0
+		
+		for col in range(num_cols):
+			pivot_row = None
+			for row in range(rank, num_rows):
+				if m[row][col] != 0:
+					pivot_row = row
+					break
+			if pivot_row is None:
+				continue
+			m[rank], m[pivot_row] = m[pivot_row], m[rank]
+			pivot = m[rank][col]
+			m[rank] = [val / pivot for val in m[rank]]
+			for row in range(num_rows):
+				if row != rank and m[row][col] != 0:
+					factor = m[row][col]
+					m[row] = [val - factor * lead for val, lead in zip(m[row], m[rank])]
+			pivot_cols.append(col)
+			rank += 1
+
+		free_var_index = [col for col in range(num_cols) if col not in pivot_cols][0]
+		solution = [Fraction(0)] * num_cols
+		solution[free_var_index] = Fraction(1)
+		
+		for row_idx, pivot_col in enumerate(pivot_cols):
+			value = -m[row_idx][free_var_index]
+			solution[pivot_col] = value
+
+		return Vector[solution]
+
 	def intersects(self, object: Union[Primitive, Point, list, tuple]) -> List[Point]:
 		if isinstance(object, (list, tuple, np.ndarray)):
 			object = Point(*object)
@@ -1312,31 +1354,19 @@ class AffineSpace:
 			'''
 			dim = max(object.dimension, self.origin.dimension, *[v.dimension for v in self.vectors])
 
-			mat1 = [list(v.pos2) + [0] * (dim - v.pos2.dimension) for v in self.vectors]
+			mat1 = [v.pos2.axes + [Fraction(0)] * (dim - v.pos2.dimension) for v in self.vectors]
 			mat2 = mat1 + [object - self.origin]
 			return [object] if matrix_rank(mat1) == matrix_rank(mat2) else []
 
 		elif isinstance(object, (Line, Ray, Segment, Vector)):
-			# Line intersects Space if l.pos1 + l.vector * t = origin + vec1 * x + vec2 * y ... + vecN * N
-			# AND Ray/Segment/Vector intersects Space also if result point in primitive
-			lists = eq_len_axeslists(
-				object.pos1.float_axes,
-				self.origin.float_axes,
-				object.vector.pos2.float_axes,
-				*[ vec.pos2.float_axes for vec in self.vectors ]
-			)
-			pos1, origin, vec1, vectors = lists[0], lists[1], lists[2], lists[3:]
+			if self.normal.is_perpendicular(object):
+				return []
+			else:
+				new_object = self.primitive_projection(object)
+				return object.intersects(new_object)
 
-			basic = np.array(origin) - np.array(pos1)
-			matrix = np.column_stack(vectors + [-np.array(vec1)])
-			coeffs = np.linalg.pinv(matrix) @ basic
-			matrix_coeffs, line_coeff = coeffs[:-1], coeffs[-1]
-			result_point = sum([ (vec*i).pos2 if i.all(0) else Point[0] for vec, i in zip(self.vectors, matrix_coeffs) ]) + self.origin
-
-			if np.allclose(matrix @ coeffs, basic) and result_point in self and result_point in object:
-				return [result_point]
-			
-			return []
+		elif isinstance(object, (AffineSpace)):
+			...
 
 		elif hasattr(object, 'intersects') and not isinstance(object, Primitive):
 			return object.intersects(self)
@@ -1352,16 +1382,15 @@ class AffineSpace:
 		shift = point - self.origin
 		return self.__class__(self.origin + shift, self.vectors, name=self.name) # TODO: пространство то двигается, а внутренние объекты нет =(
 
-	# Gives orthogonal vectors to space
-	def ortovectors_by_dim(self, dimension: int) -> List['Vector']:
-		vectors = np.array(eq_len_axeslists(*[ vec.pos2.float_axes for vec in self.vectors ]))
-		dim = dimension - vectors.shape[1]
-		vectors = np.pad(vectors, ((0, 0), (0, dim if dim > 0 else 0)), mode='constant') # Adding zeros to make right dimension
-
-		_, _, vh = np.linalg.svd(vectors)
-		np_perpendiculars = vh[np.linalg.matrix_rank(vectors):]
-
-		return [ Vector(self.origin, list(p)) for p in np_perpendiculars ]
+	def primitive_projection(self, pr: Union[Line, Ray, Segment, Vector, Point]) -> Union[Line, Ray, Segment, Vector, Point]:
+		if isinstance(pr, Point):
+			return pr.height_to(self)
+		else:
+			return pr.__class__(
+				pr.pos1.project_to_space(self),
+				pr.pos2.project_to_space(self),
+				name=pr.name, alpha=pr.alpha, color=pr.color
+			)
 
 	def link_objects(self, objects: List[Primitive]):
 		for i in range(len(objects)):
@@ -1393,6 +1422,10 @@ class AffineSpace:
 			return Scene2D(*self.local_objects)
 		else:
 			return Scene3D(*self.local_objects)
+
+	@property
+	def normal(self) -> Vector:
+		return self.get_normal()
 
 	@property
 	def local_objects(self) -> List[Primitive]:

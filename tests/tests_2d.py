@@ -176,3 +176,28 @@ if __name__ == '__main__':
 	tests = { key: value for key, value in globals().items() if key.startswith('test_') and callable(value) }
 	for test in tests.values():
 		test()
+
+# A = Point[0, 0, 0]
+# v1 = Vector[1, 0, 0]
+# v2 = Vector[0, 1, 0]
+
+# assert point_in_plane(Point[0, 0, 0], A, [v1, v2]) is True
+# assert point_in_plane(Point[5, 5, 0], A, [v1, v2]) is True
+# assert point_in_plane(Point[5, 5, 1], A, [v1, v2]) is False
+
+# A = Point[0, 0, 0]
+# v1 = Vector[1, 1, 0]
+# v2 = Vector[0, 0, 1]
+
+# assert point_in_plane(Point[2, 2, 1], A, [v1, v2]) is True
+# assert point_in_plane(Point[3, 3, 3], A, [v1, v2]) is True
+# assert point_in_plane(Point[3, 2, 3], A, [v1, v2]) is False
+
+# A = Point[1, 1, 1, 1, 1]
+# v1 = Vector[1, 0, 0, 0, 0]
+# v2 = Vector[0, 1, 0, 0, 0]
+# v3 = Vector[0, 0, 1, 0, 0]
+# v4 = Vector[0, 0, 0, 1, 0]
+
+# assert point_in_plane(Point[2, 2, 2, 2, 1], A, [v1, v2, v3, v4]) is True
+# assert point_in_plane(Point[2, 2, 2, 2, 2], A, [v1, v2, v3, v4]) is False
