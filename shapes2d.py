@@ -80,11 +80,10 @@ class Polygon(Shape2D):
 
 			for point in self.vertices:
 				if not point in space:
-					pass # TODO: поправить edge у 3D
-					# raise ConstructError('A multidimensional (3D+, not 2D) polygon must lie on a 2D surface (2D Space with 2 equal size orthogonal vectors)')
+					raise ConstructError('A multidimensional (3D+, not 2D) polygon must lie on a 2D surface (2D Space with 2 equal size orthogonal vectors)')
 
 	def intersects(self, object: Union[Primitive, Shape, Point, tuple, list], check_inside: bool = True) -> List[Point]:
-		return self.intersects_2d(object, check_inside=check_inside) ####################################################
+		return self.intersects_2d(object, check_inside=check_inside)
 
 	def intersects_2d(self, object: Union[Primitive, Shape, Point, tuple, list], check_inside: bool = True) -> List[Point]:
 		if isinstance(object, (tuple, list, np.ndarray)):
@@ -336,7 +335,8 @@ class Polygon(Shape2D):
 		origin = self.vertices[0]
 		segments = self.segments_by_fromto_point(origin)
 		perps = gram_schmidt([segments[0].to_vector.to_zero, segments[1].to_vector.to_zero])
-		return Space(origin, perps, name=space_of_object_name.format(self.name)).at_pos(self.center_of_mass).at_pos([0])
+		print(self.vertices, self.center_of_mass)
+		return Space(origin, perps, name=space_of_object_name.format(self.name)).at_pos(self.center_of_mass)
 
 	@property
 	def dimension(self) -> int:
@@ -351,9 +351,7 @@ class Polygon(Shape2D):
 
 	@property
 	def center_of_mass(self) -> Point:
-		y = [ vertice.y for vertice in self.vertices ]
-		x = [ vertice.x for vertice in self.vertices ]
-		return Point(to_fraction(sum(x), len(x)), to_fraction(sum(y), len(y)), name=center_name.format(self.name))
+		return Point((sum(self.vertices) / len(self.vertices)).axes, name=center_name.format(self.name))
 
 	@property
 	def area(self) -> float:

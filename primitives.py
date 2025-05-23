@@ -172,12 +172,12 @@ class Point(Primitive, metaclass=PointMeta):
 	def __truediv__(self, object: Union[int, float, Fraction]) -> 'Point':
 		try:
 			if isinstance(object, (int, float, Fraction)):
-				return self.__class__([to_fraction(axis, object) for axis in self.axes], name=self.name)
+				return self.__class__(*[to_fraction(axis, object) for axis in self.axes], name=self.name)
 			elif isinstance(object, Point):
-				return self.__class__([to_fraction(self.axes[i], object.axes[i]) for i in range(max(self.dimension, object.dimension))], name=self.name)
+				return self.__class__(*[to_fraction(self.axes[i], object.axes[i]) for i in range(max(self.dimension, object.dimension))], name=self.name)
 			elif isinstance(object, (tuple, list, np.ndarray)):
 				object = AxesList(object)
-				return self.__class__([to_fraction(self.axes[i], object[i]) for i in range(max(self.dimension, len(object)))], name=self.name)
+				return self.__class__(*[to_fraction(self.axes[i], object[i]) for i in range(max(self.dimension, len(object)))], name=self.name)
 			else:
 				raise ConstructError(f"Unsupported operand type(s) for /: '{self.__class__.__name__}' and '{type(object).__name__}'")
 		except ZeroDivisionError:
@@ -186,12 +186,12 @@ class Point(Primitive, metaclass=PointMeta):
 	def __floordiv__(self, object: Union[int, float, Fraction]) -> 'Point':
 		try:
 			if isinstance(object, (int, float, Fraction)):
-				return self.__class__([to_fraction(axis, object) for axis in self.axes], name=self.name)
+				return self.__class__(*[to_fraction(axis, object) for axis in self.axes], name=self.name)
 			elif isinstance(object, Point):
-				return self.__class__([to_fraction(self.axes[i], object.axes[i]) for i in range(max(self.dimension, object.dimension))], name=self.name)
+				return self.__class__(*[to_fraction(self.axes[i], object.axes[i]) for i in range(max(self.dimension, object.dimension))], name=self.name)
 			elif isinstance(object, (tuple, list, np.ndarray)):
 				object = AxesList(object)
-				return self.__class__([to_fraction(self.axes[i], object[i]) for i in range(max(self.dimension, len(object)))], name=self.name)
+				return self.__class__(*[to_fraction(self.axes[i], object[i]) for i in range(max(self.dimension, len(object)))], name=self.name)
 			else:
 				raise ConstructError(f"Unsupported operand type(s) for //: '{self.__class__.__name__}' and '{type(object).__name__}'")
 		except ZeroDivisionError:
