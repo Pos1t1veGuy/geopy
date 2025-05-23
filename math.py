@@ -2,7 +2,7 @@ from typing import *
 from math import sqrt
 import numpy as np
 
-from .types import eq_len_axeslists
+from ._types import eq_len_axeslists
 
 
 EPSILON = 9e-10

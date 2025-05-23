@@ -1,6 +1,29 @@
 from typing import *
 from fractions import Fraction
 
+
+intersection_result_name = '|{}-{}|_ion'
+height_name = '{}_height'
+projection_name = '{}_proj'
+perpendicular_name = '{}_perp'
+vector_of_object_name = '{}_vec'
+center_name = '{}_center'
+normalize_result_name = '{}_norm'
+
+angle_result_name = '{}_ang'
+angle_between_name = '|{}-{}|_angle'
+angle_bisector_name = '{}_bis'
+
+affine_space_vectors_name = '({name})_vector{i}'
+affine_space_local_object_name = '{}_local'
+affine_space_global_object_name = '{}_global'
+affine_space_of_object_name = '{}_space'
+space_of_object_name = '{}_space'
+
+polygon_segments_name = '({name})_segment{i}'
+polygon_angles_name = '({name})_angle{i}'
+
+
 class AxesList(list):
 	# Infinity list. If use __getitem__ with i > length it returns 0, that means 0 coordinate at axis.
 	# AxesList([1,2,3])[i] with 0 <= i < length returns 1, 2 or 3; with i > length returns 0
@@ -18,14 +41,14 @@ class AxesList(list):
 					pass
 		else:
 			raise IndexError('Axis index must be integer >=0')
-		return 0
+		return Fraction(0)
 
 	def as_list(self, length: int = -1) -> list:
 		# Convert to default list
 		if length == -1 or len(self) == length:
 			return list(self)
 		elif len(self) < length:
-			return list(self) + [0] * (length - len(self))
+			return list(self) + [Fraction(0)] * (length - len(self))
 		else:
 			return list(self)[:length]
 

@@ -3,6 +3,18 @@ import random
 
 
 output_image_path = 'AssertImage.png'
+save_scene = True
+show_scene = True
+
+def make_scene(*objects):
+	print('OBJECTS:')
+	for i in objects:
+		print(i)
+	scene = Scene2D(*objects)
+	if save_scene:
+		scene.save(output_image_path)
+	if show_scene:
+		scene.show()
 
 
 def test_line_circle_intersection():
@@ -63,9 +75,7 @@ def test_line_circle_intersection():
 			assert len(ions) == 2 and ions[0] != ions[1], f'Line intersects circle in {len(ions)} points but must to intersects in 2 different points'
 
 	except AssertionError as e:
-		for i in [ray, line, ions]:
-			print(i)
-		Scene2D(circle, line, *ions).save(output_image_path)
+		make_scene(circle, line, *ions)
 		raise e
 
 def test_ray_segment_intersects_circle():
@@ -89,9 +99,7 @@ def test_ray_segment_intersects_circle():
 		assert len(ions) != 1, f'Ray intersects circle in {len(ions)} points but must to intersects in 0 or 2 points'
 
 	except AssertionError as e:
-		for i in [ray, circle, ions]:
-			print(i)
-		Scene2D(circle, ray, *ions).save(output_image_path)
+		make_scene(circle, ray, *ions)
 		raise e
 
 	try:
@@ -135,9 +143,7 @@ def test_circles_intersection():
 		assert len(ions) == 1 and ions[0] == c1.center == c2.center, f'Circles intersect in {len(ions)} points but must to intersect in 1 point - center of Circles'
 
 	except AssertionError as e:
-		for i in [c1, c2, ions]:
-			print(i)
-		Scene2D(c1, c2, *ions).save(output_image_path)
+		make_scene(c1, c2, *ions)
 		raise e
 
 def test_line_height():
@@ -162,42 +168,182 @@ def test_line_height():
 				len(ions) == 1), f'Height must to intersect in one point and be perpendicular'
 
 	except AssertionError as e:
-		for i in [l, height, ions]:
-			print(i)
-		Scene2D(l, height, *ions).save(output_image_path)
+		make_scene(l, height, *ions)
 		raise e
 
+def test_space_point_intersection():
+	def check_intersection(point: Point, origin: Point, vectors: List[Vector], result: bool) -> bool:
+		try:
+			space = Space(origin, vectors)
+			assert (space in point) == result, f"Space {'intersects' if not result else 'not intersects'} point"
+		except AssertionError as e:
+			make_scene(*space.vectors, point)
+			print(space)
+			raise e
 
-# TODO:
-# Сделать тест на две прямые и два отрезка
-# Сделать тест на пренадлежность точки прямой, отрезку и лучу
+	check_intersection(Point[0,0,0], Point[0,0,0], [Vector[1,0], Vector[0,1]], True)
+	check_intersection(Point[5,5,0], Point[0,0,0], [Vector[1,0], Vector[0,1]], True)
+	check_intersection(Point[5,5,1], Point[0,0,0], [Vector[1,0], Vector[0,1]], False)
+
+	check_intersection(Point[2,2,1], Point[0,0,0], [Vector[1,1,0].normalize, Vector[0,0,1]], True)
+	check_intersection(Point[3,3,3], Point[0,0,0], [Vector[1,1,0].normalize, Vector[0,0,1]], True)
+	check_intersection(Point[3,2,3], Point[0,0,0], [Vector[1,1,0].normalize, Vector[0,0,1]], False)
+
+	check_intersection(Point[2,2,2,2,1], Point[1,1,1,1,1], [Vector[1,0,0,0,0],Vector[0,1,0,0,0],Vector[0,0,1,0,0],Vector[0,0,0,1,0]], True)
+	check_intersection(Point[2,2,2,2,3], Point[1,1,1,1,1], [Vector[1,0,0,0,0],Vector[0,1,0,0,0],Vector[0,0,1,0,0],Vector[0,0,0,1,0]], False)
+
+def test_lines_intersection():
+		def check_intersection_at(pos: Point):
+			try:
+				if not isinstance(pos, Point):
+					pos = Point(pos)
+
+				ions = []
+				l1 = Line([0,0], [1,1], color='red').at_pos(pos)
+
+				for degree in range(180):
+					l2 = Line.by_angle(degree).at_pos(pos)
+					if degree == 45:
+						# Lines are equal, intersection is a Line
+						assert l1.is_parallel(l2), 'Lines must to be a parallel but not'
+
+						ions = l1.intersects(l2)
+						assert len(ions) == 1, f'Lines are equal and must have ONE intersection Line: {ions}'
+						assert isinstance(ions[0], Line), f'Lines are equal and must have ONE intersection Line: {ions}'
+						assert (
+							ions[0].pos1 in l1 and ions[0].pos1 in l2 and ions[0].pos2 in l1 and ions[0].pos2 in l2
+						), f'Intersection Line must be equal to both given paralel lines: {ions}'
+
+						assert l1.is_parallel(l2), 'Lines must to be a parallel but not'
+
+						# Lines are parallel, intersection does not exists
+						l2 = l2.at_pos(pos + [2,0])
+						ions = l1.intersects(l2)
+						assert ions == [], f'Lines are parallel but have intersection: {ions}'
+					else:
+						ions = l1.intersects(l2)
+						assert len(ions) > 0, 'Lines are not parallel but have not intersection'
+			except AssertionError as e:
+				make_scene(l1, l2, *ions)
+				raise e
+
+		def check_intersection_by_deg(deg1: int, deg2: int):
+			try:
+				l1 = Line.by_angle(deg1).at_pos([99,-99])
+				l2 = Line.by_angle(deg2).at_pos([1,1])
+				ions = l1.intersects(l2)
+				assert len(ions) > 0, f'Perpendicular lines must intersect at ONE point: {ions}'
+				assert isinstance(ions[0], Point), f'Perpendicular lines must intersect at one POINT: {ions}'
+			except AssertionError as e:
+				make_scene(l1, l2, *ions)
+				raise e
+
+		check_intersection_at([0,0])
+		check_intersection_at([2,0])
+		check_intersection_at([0,-3])
+		check_intersection_at([.5,.5])
+
+		check_intersection_by_deg(0, 90)
+		check_intersection_by_deg(45, -45)
+
+def test_segments_intersection():
+	try:
+		s1, s2 = Segment([0,0],[1,0]), Segment([0,0], [0,-1])
+		ions = s1.intersects(s2)
+		assert ions == [Point[0]], f"Expected one intersection point [0,0], but it is: {ions}"
+		s1, s2 = Segment([0,0],[-1,0]), Segment([0,2], [0,0])
+		ions = s1.intersects(s2)
+		assert ions == [Point[0]], f"Expected one intersection point [0,0], but it is: {ions}"
+		s1 = s1.at_pos([2,2])
+		ions = s1.intersects(s2)
+		assert ions == [], f"Expected no intersections, but it is: {ions}"
+		s1, s2 = Segment([0,0],[1,1]), Segment([1,0], [0,1])
+		ions = s1.intersects(s2)
+		assert ions == [Point[.5,.5]], f"Expected one intersection point [.5,.5], but it is: {ions}"
+		s1, s2 = Segment([-1,1],[1,1]), Segment([0,0], [0,-1])
+		ions = s1.intersects(s2)
+		assert ions == [], f"Expected no intersections, but it is: {ions}"
+
+		s1, s2 = Segment([1, 0], [-2, 0]), Segment([1, 0], [2, 0])
+		ions = s1.intersects(s2)
+		assert ions == [Point[1,0]], f"Expected intersection in [1,0], got: {ions}"
+		s1, s2 = Segment([1, 0], [-2, 0]), Segment([1.0001, 0], [2, 0])
+		ions = s1.intersects(s2)
+		assert ions == [], f"Expected no intersections, got: {ions}"
+		s1, s2 = Segment([1, 0], [-2, 0]), Segment([0.5, 0], [2, 0])
+		ions = s1.intersects(s2)
+		assert len(ions) == 1, f"Expected ONE intersection Segment, got: {ions}"
+		assert isinstance(ions[0], Segment), f"Expected one intersection SEGMENT, got: {ions}"
+		assert ions[0].length == .5, f"Expected 0.5 lengths Segment, but it is: {ions[0].length}"
+		points = [s1.pos1, s2.pos1]
+		assert (
+				ions[0].pos1 in points and ions[0].pos2 in points
+		), f"Intersection segment must be from [1,0] to [0.5], but it is {ions[0].pos1} and {ions[0].pos2}"
+
+		s1, s2 = Segment([0, 1], [0, -2]), Segment([0, 1], [0, 2])
+		ions = s1.intersects(s2)
+		assert ions == [Point[0,1]], f"Expected intersection in [0,1], got: {ions}"
+		s1, s2 = Segment([0, 1], [0, -2]), Segment([0, 1.0001], [0, 2])
+		ions = s1.intersects(s2)
+		assert ions == [], f"Expected no intersections, got: {ions}"
+		s1, s2 = Segment([0, 1], [0, -2]), Segment([0, 0.5], [0, 2])
+		ions = s1.intersects(s2)
+		assert len(ions) == 1, f"Expected ONE intersection Segment, got: {ions}"
+		assert isinstance(ions[0], Segment), f"Expected one intersection SEGMENT, got: {ions}"
+		assert ions[0].length == .5, f"Expected 0.5 lengths Segment, but it is: {ions[0].length}"
+		points = [s1.pos1, s2.pos1]
+		assert (
+				ions[0].pos1 in points and ions[0].pos2 in points
+		), f"Intersection segment must be from [1,0] to [0.5], but it is {ions[0].pos1} and {ions[0].pos2}"
+
+		s1, s2 = Segment([1, 1], [2, 2]), Segment([2, 2], [3, 3])
+		ions = s1.intersects(s2)
+		assert ions == [Point[2,2]], f"Expected intersection in [2,2], got: {ions}"
+		s1, s2 = Segment([1, 1], [2, 2]), Segment([2.0001, 2.1], [3, 3])
+		ions = s1.intersects(s2)
+		assert ions == [], f"Expected no intersections, got: {ions}"
+		s1, s2 = Segment([1, 1], [2, 2]), Segment([1.5,1.5], [3, 3])
+		ions = s1.intersects(s2)
+		assert len(ions) == 1, f"Expected ONE intersection Segment, got: {ions}"
+		assert isinstance(ions[0], Segment), f"Expected one intersection SEGMENT, got: {ions}"
+		assert 0.7 < ions[0].length < 0.8, f"Expected ~0.71 lengths Segment, but it is: {ions[0].length}"
+		points = [s1.pos2, s2.pos1]
+		assert (
+				ions[0].pos1 in points and ions[0].pos2 in points
+		), f"Intersection segment must be from [2, 2] and [1.5, 1.5], but it is {ions[0].pos1} and {ions[0].pos2}"
+
+		s1, s2 = Segment([-1, 1], [1, -1]), Segment([-1, 1], [-2, 2])
+		ions = s1.intersects(s2)
+		assert ions == [Point[-1,1]], f"Expected intersection in [-1,1], got: {ions}"
+		s1, s2 = Segment([-1, 1], [1, -1]), Segment([-1.1, 1.0001], [-2, 2])
+		ions = s1.intersects(s2)
+		assert ions == [], f"Expected no intersections, got: {ions}"
+		s1, s2 = Segment([-1, 1], [1, -1]), Segment([-.5, .5], [-2, 2])
+		ions = s1.intersects(s2)
+		assert len(ions) == 1, f"Expected ONE intersection Segment, got: {ions}"
+		assert isinstance(ions[0], Segment), f"Expected one intersection SEGMENT, got: {ions}"
+		assert 0.7 < ions[0].length < 0.8, f"Expected ~0.71 lengths Segment, but it is: {ions[0].length}"
+		points = [s1.pos1, s2.pos1]
+		assert (
+				ions[0].pos1 in points and ions[0].pos2 in points
+		), f"Intersection segment must be from [-1, 1] and [-0.5, 0.5], but it is {ions[0].pos1} and {ions[0].pos2}"
+
+	except AssertionError as e:
+		make_scene(s1, s2, *ions)
+		raise e
+
+def test_rays_intersection():
+	try:
+		s1, s2 = Segment([0,0],[1,0]), Segment([0,0], [0,-1])
+		ions = s1.intersects(s2)
+		assert ions == [Point[0]], f"There is must to be one intersection point [0,0], but it is: {ions}"
+
+	except AssertionError as e:
+		make_scene(s1, s2, *ions)
+		raise e
+
 
 if __name__ == '__main__':
 	tests = { key: value for key, value in globals().items() if key.startswith('test_') and callable(value) }
 	for test in tests.values():
 		test()
-
-# A = Point[0, 0, 0]
-# v1 = Vector[1, 0, 0]
-# v2 = Vector[0, 1, 0]
-
-# assert point_in_plane(Point[0, 0, 0], A, [v1, v2]) is True
-# assert point_in_plane(Point[5, 5, 0], A, [v1, v2]) is True
-# assert point_in_plane(Point[5, 5, 1], A, [v1, v2]) is False
-
-# A = Point[0, 0, 0]
-# v1 = Vector[1, 1, 0]
-# v2 = Vector[0, 0, 1]
-
-# assert point_in_plane(Point[2, 2, 1], A, [v1, v2]) is True
-# assert point_in_plane(Point[3, 3, 3], A, [v1, v2]) is True
-# assert point_in_plane(Point[3, 2, 3], A, [v1, v2]) is False
-
-# A = Point[1, 1, 1, 1, 1]
-# v1 = Vector[1, 0, 0, 0, 0]
-# v2 = Vector[0, 1, 0, 0, 0]
-# v3 = Vector[0, 0, 1, 0, 0]
-# v4 = Vector[0, 0, 0, 1, 0]
-
-# assert point_in_plane(Point[2, 2, 2, 2, 1], A, [v1, v2, v3, v4]) is True
-# assert point_in_plane(Point[2, 2, 2, 2, 2], A, [v1, v2, v3, v4]) is False

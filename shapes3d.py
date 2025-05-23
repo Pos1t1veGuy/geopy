@@ -17,15 +17,15 @@ class Parallelepiped(Shape3D):
 		self.name = name
 		self.pos1, self.pos2 = pos1, pos2
 
-		if self.dimension <= 2:
+		if Line(pos1,pos2).true_dimension <= 2:
 			raise ConstructError(f'Vertices must to be not on the 2D plane')
 
-		self.vertices = self._vertices(pos1, pos2)
+		self.vertices = self.make_vertices(pos1, pos2)
 		self.vector_x = Vector(pos1, Point(pos1.x, pos1.y, pos2.z))
 		self.vector_y = Vector(pos1, Point(pos2.x, pos1.y, pos1.z))
 		self.vector_z = Vector(pos1, Point(pos1.x, pos2.y, pos1.z))
 
-	def _vertices(self, pos1: 'Point', pos2: 'Point') -> List['Point']:
+	def make_vertices(self, pos1: 'Point', pos2: 'Point') -> List['Point']:
 		return [Point(x, y, z) for x, y, z in product([pos1.x, pos2.x], [pos1.y, pos2.y], [pos1.z, pos2.z])]
 
 	def intersects(self, object: Union[Primitive, Shape, Point, tuple, list], check_inside: bool = True):
@@ -95,21 +95,13 @@ class Parallelepiped(Shape3D):
 
 	@property
 	def edges(self) -> List['Polygon']:
-		# print([
-		# 	(self.vertices[0], self.vertices[1], self.vertices[3], self.vertices[2]),  # down
-		# 	# (self.vertices[4], self.vertices[5], self.vertices[7], self.vertices[6]),  # up
-		# 	# (self.vertices[0], self.vertices[1], self.vertices[5], self.vertices[4]),  # front
-		# 	# (self.vertices[2], self.vertices[3], self.vertices[7], self.vertices[6]),  # back
-		# 	# (self.vertices[0], self.vertices[2], self.vertices[6], self.vertices[4]),  # left
-		# 	# (self.vertices[1], self.vertices[3], self.vertices[7], self.vertices[5]),  # right
-		# ])
 		return [
 			Polygon(self.vertices[0], self.vertices[1], self.vertices[3], self.vertices[2], name='Polygon0'),  # down
-			# Polygon(self.vertices[4], self.vertices[5], self.vertices[7], self.vertices[6], name='Polygon1'),  # up
-			# Polygon(self.vertices[0], self.vertices[1], self.vertices[5], self.vertices[4], name='Polygon2'),  # front
-			# Polygon(self.vertices[2], self.vertices[3], self.vertices[7], self.vertices[6], name='Polygon3'),  # back
-			# Polygon(self.vertices[0], self.vertices[2], self.vertices[6], self.vertices[4], name='Polygon4'),  # left
-			# Polygon(self.vertices[1], self.vertices[3], self.vertices[7], self.vertices[5], name='Polygon5'),  # right
+			Polygon(self.vertices[4], self.vertices[5], self.vertices[7], self.vertices[6], name='Polygon1'),  # up
+			Polygon(self.vertices[0], self.vertices[1], self.vertices[5], self.vertices[4], name='Polygon2'),  # front
+			Polygon(self.vertices[2], self.vertices[3], self.vertices[7], self.vertices[6], name='Polygon3'),  # back
+			Polygon(self.vertices[0], self.vertices[2], self.vertices[6], self.vertices[4], name='Polygon4'),  # left
+			Polygon(self.vertices[1], self.vertices[3], self.vertices[7], self.vertices[5], name='Polygon5'),  # right
 		]
 
 	@property

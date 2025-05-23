@@ -193,6 +193,7 @@ class Scene3D(Scene):
 		self.lines = []
 		self.rays = []
 		self.points = []
+		self.vectors = []
 		self.objects = args
 
 		for object in args:
@@ -229,7 +230,7 @@ class Scene3D(Scene):
 		self.points.append(point)
 
 	def add_vector(self, vector: Vector):
-		self.ax.plot([vector.pos1.x, vector.pos2.x], [vector.pos1.y, vector.pos2.y], [vector.pos1.z, vector.pos2.z], color=vector.color, marker='.', alpha=vector.alpha)
+		self.vectors.append(vector)
 		self.points.append(vector.pos1)
 		self.points.append(vector.pos2)
 
@@ -244,6 +245,7 @@ class Scene3D(Scene):
 	def add_ray(self, ray: Ray):
 		self.rays.append(ray)
 		self.points.append(ray.pos1)
+		self.points.append(ray.pos2)
 
 	def add_line(self, line: Line):
 		self.lines.append(line)
@@ -311,18 +313,39 @@ class Scene3D(Scene):
 			else:
 				scene_rect = Box(max_point, [0,0,0])
 
+			for vector in self.vectors:
+				direction = vector.pos2 - vector.pos1
+
+				self.ax.quiver(
+					vector.pos1.x, vector.pos1.y, vector.pos1.z,
+					direction.x, direction.y, direction.z,
+					color=vector.color,
+					alpha=vector.alpha,
+					arrow_length_ratio=0.04
+				)
+				self.ax.plot(
+					[vector.pos1.x, vector.pos2.x],
+					[vector.pos1.y, vector.pos2.y],
+					[vector.pos1.z, vector.pos2.z],
+					color=vector.color, marker='.', alpha=vector.alpha
+				)
+
 			for ray in self.rays:
 				if max_point != min_point:
-					ions = scene_rect.intersects(ray)
-					self.ax.add_line(
-						Line2D([ray.pos1.x, ions[0].x], [ray.pos1.y, ions[0].y], color=ray.color, marker='.', markevery=[0], linewidth=2, alpha=ray.alpha)
-					)
-					self.ax.annotate('', xy=tuple(ions[0].axes), xytext=(ray.pos1.x, ray.pos1.y), arrowprops=dict(arrowstyle='->', color=ray.color))
+					direction = scene_rect.intersects(ray)[0] - ray.pos1
 				else:
-					self.ax.add_line(
-						Line2D([ray.pos1.x, ray.pos2.x], [ray.pos1.y, ray.pos2.y], color=ray.color, marker='.', markevery=[0], linewidth=2, alpha=ray.alpha)
-					)
-					self.ax.annotate('', xy=(ray.pos2.x, ray.pos2.y), xytext=(ray.pos1.x, ray.pos1.y), arrowprops=dict(arrowstyle='->', color=ray.color))
+					direction = ray.pos2
+
+				self.ax.quiver(
+					ray.pos1.x, ray.pos1.y, ray.pos1.z,
+					direction.x, direction.y, direction.z,
+					color=ray.color,
+					alpha=ray.alpha,
+					arrow_length_ratio=0.02
+				)
+				start_pos = ray.pos1
+				start_pos.color, start_pos.alpha = ray.color, ray.alpha
+				self.add_point(start_pos)
 
 			for line in self.lines:
 				ions = scene_rect.intersects(line)
