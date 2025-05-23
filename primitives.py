@@ -1322,28 +1322,28 @@ class Angle:
 
 	# Returns True if the degree measure of Angle is zero
 	@property
-	def zero(self) -> bool:
+	def is_zero(self) -> bool:
 		return self.pos2 in Segment(self.pos1, self.midpos) or self.pos1 in Segment(self.pos2, self.midpos)
 
 	@property
 	def cos(self) -> float:
-		return 1.0 if self.zero else to_fraction(self.vec1.dot(self.vec2), self.vec1.length * self.vec2.length)
+		return 1.0 if self.is_zero else to_fraction(self.vec1.dot(self.vec2), self.vec1.length * self.vec2.length)
 	@property
 	def sin(self) -> float:
-		return 0.0 if self.zero else sqrt(1 - self.cos**2)
+		return 0.0 if self.is_zero else sqrt(1 - self.cos**2)
 	@property
 	def tan(self) -> float:
-		return 0.0 if self.zero else to_fraction(self.sin, self.cos) if self.cos != 0 else 0.0
+		return 0.0 if self.is_zero else to_fraction(self.sin, self.cos) if self.cos != 0 else 0.0
 
 	@property
 	def radians(self) -> float:
-		return 0.0 if self.zero else acos(self.cos)
+		return 0.0 if self.is_zero else acos(self.cos)
 	@property
 	def degrees(self) -> float:
-		return 0.0 if self.zero else degrees(self.radians)
+		return 0.0 if self.is_zero else degrees(self.radians)
 	@property
 	def minutes(self) -> float:
-		return 0.0 if self.zero else self.degrees * 60
+		return 0.0 if self.is_zero else self.degrees * 60
 
 	@property
 	def value(self):
@@ -1562,9 +1562,6 @@ class AffineSpace:
 				raise ConstructError(f"Unsupported type: '{obj.__class__.__name__}', supports only Point, Line, Ray, Segment or Vector")
 		return local_objects
 
-	def show(self):
-		self.scene.show()
-
 	@property
 	def scene(self) -> 'Scene':
 		from .scene import Scene3D, Scene2D
@@ -1572,6 +1569,9 @@ class AffineSpace:
 			return Scene2D(*self.local_objects)
 		else:
 			return Scene3D(*self.local_objects)
+
+	def show(self):
+		self.scene.show()
 
 	@property
 	def normal(self) -> Vector:
