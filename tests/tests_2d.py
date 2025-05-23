@@ -227,13 +227,16 @@ def test_lines_intersection():
 				make_scene(l1, l2, *ions)
 				raise e
 
-		def check_intersection_by_deg(deg1: int, deg2: int):
+		def check_intersection_by_deg(deg1: int, deg2: int, result_type = Point, move: bool = True):
 			try:
-				l1 = Line.by_angle(deg1).at_pos([99,-99])
-				l2 = Line.by_angle(deg2).at_pos([1,1])
+				l1 = Line.by_angle(deg1)
+				if move: l1.at_pos([99,-99])
+				l2 = Line.by_angle(deg2)
+				if move: l1.at_pos([1,1])
+
 				ions = l1.intersects(l2)
-				assert len(ions) > 0, f'Perpendicular lines must intersect at ONE point: {ions}'
-				assert isinstance(ions[0], Point), f'Perpendicular lines must intersect at one POINT: {ions}'
+				assert len(ions) > 0, f'Perpendicular lines must intersect at ONE {result_type}: {ions}'
+				assert type(ions[0]) == result_type, f'Perpendicular lines must intersect at one {result_type}: {ions}'
 			except AssertionError as e:
 				make_scene(l1, l2, *ions)
 				raise e
@@ -245,6 +248,10 @@ def test_lines_intersection():
 
 		check_intersection_by_deg(0, 90)
 		check_intersection_by_deg(45, -45)
+
+		check_intersection_by_deg(45, 45, result_type=Line)
+		check_intersection_by_deg(0, 0, result_type=Line)
+		check_intersection_by_deg(-45, -45, result_type=Line)
 
 def test_segments_intersection():
 	try:
@@ -334,12 +341,111 @@ def test_segments_intersection():
 
 def test_rays_intersection():
 	try:
-		s1, s2 = Segment([0,0],[1,0]), Segment([0,0], [0,-1])
-		ions = s1.intersects(s2)
+		# from the third to the first quadrant of Cartesian coordinates
+		r1, r2 = Ray([0,0],[1,1]), Ray([0,0], [-1,-1])
+		ions = r1.intersects(r2)
 		assert ions == [Point[0]], f"There is must to be one intersection point [0,0], but it is: {ions}"
+		r1, r2 = Ray([0,0],[1,-1]), Ray([0,0], [-1,-1])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0]], f"There is must to be one intersection point [0,0], but it is: {ions}"
+		r1, r2 = Ray([0,0],[-1,1]), Ray([0,0], [-1,-1])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0]], f"There is must to be one intersection point [0,0], but it is: {ions}"
+		r1, r2 = Ray([0,0],[-1,-1]), Ray([0,0], [-1,-1])
+		ions = r1.intersects(r2)
+		assert len(ions) == 1, f"Expected ONE intersection Ray, got: {ions}"
+		assert isinstance(ions[0], Ray), f"Expected one intersection RAY, got: {ions}"
+		assert (
+				ions[0].pos1 == r1.pos1 == r2.pos1 and ions[0].pos2 == r1.pos2 == r2.pos2
+		), f"Intersection Ray must be from {r1.pos1} to {r2.pos2}, but it is {ions[0].pos1} and {ions[0].pos2}"
+		r1, r2 = Ray([-1,-1], [0.2,0.2]), Ray([0,0], [-1,-1])
+		ions = r1.intersects(r2)
+		assert len(ions) == 1, f"Expected ONE intersection Segment, got: {ions}"
+		assert isinstance(ions[0], Segment), f"Expected one intersection SEGMENT, got: {ions}"
+		points = [r1.pos1, r2.pos1]
+		assert (
+				ions[0].pos1 in points and ions[0].pos2 in points
+		), f"Intersection segment must be from {points[0]} to {points[1]}, but it is {ions[0].pos1} and {ions[0].pos2}"
 
+		# from the second to the fourth quadrant of Cartesian coordinates
+		r1, r2 = Ray([0, 0], [1, -1]), Ray([0, 0], [-1, 1])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0]], f"There must be one intersection point [0,0], but got: {ions}"
+		r1, r2 = Ray([0, 0], [1, 1]), Ray([0, 0], [-1, 1])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0]], f"There must be one intersection point [0,0], but got: {ions}"
+		r1, r2 = Ray([0, 0], [-1, -1]), Ray([0, 0], [-1, 1])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0]], f"There must be one intersection point [0,0], but got: {ions}"
+		r1, r2 = Ray([0, 0], [-1, 1]), Ray([0, 0], [-1, 1])
+		ions = r1.intersects(r2)
+		assert len(ions) == 1, f"Expected ONE intersection Ray, got: {ions}"
+		assert isinstance(ions[0], Ray), f"Expected intersection RAY, got: {ions}"
+		assert (
+				ions[0].pos1 == r1.pos1 == r2.pos1 and ions[0].pos2 == r1.pos2 == r2.pos2
+		), f"Intersection Ray must be from {r1.pos1} to {r2.pos2}, but got: {ions[0].pos1}, {ions[0].pos2}"
+		r1, r2 = Ray([-1, 1], [0.2, -0.2]), Ray([0, 0], [-1, 1])
+		ions = r1.intersects(r2)
+		assert len(ions) == 1, f"Expected ONE intersection Segment, got: {ions}"
+		assert isinstance(ions[0], Segment), f"Expected one intersection SEGMENT, got: {ions}"
+		points = [r1.pos1, r2.pos1]
+		assert (
+				ions[0].pos1 in points and ions[0].pos2 in points
+		), f"Intersection segment must be from {points[0]} to {points[1]}, but got: {ions[0].pos1}, {ions[0].pos2}"
+
+		# along the Y axis
+		r1, r2 = Ray([0, 0], [0, 1]), Ray([0, 0], [0, -1])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0]], f"There must be one intersection point [0,0], but got: {ions}"
+		r1, r2 = Ray([0, 0], [0, 2]), Ray([0, 0], [0, -1])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0]], f"There must be one intersection point [0,0], but got: {ions}"
+		r1, r2 = Ray([0, 0], [0, -2]), Ray([0, 0], [0, 1])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0]], f"There must be one intersection point [0,0], but got: {ions}"
+		r1, r2 = Ray([0, 0], [0, -1]), Ray([0, 0], [0, -1])
+		ions = r1.intersects(r2)
+		assert len(ions) == 1, f"Expected ONE intersection Ray, got: {ions}"
+		assert isinstance(ions[0], Ray), f"Expected intersection RAY, got: {ions}"
+		assert (
+				ions[0].pos1 == r1.pos1 == r2.pos1 and ions[0].pos2 == r1.pos2 == r2.pos2
+		), f"Intersection Ray must be from {r1.pos1} to {r2.pos2}, but got: {ions[0].pos1}, {ions[0].pos2}"
+		r1, r2 = Ray([0, -2], [0, 1]), Ray([0, -1], [0, -3])
+		ions = r1.intersects(r2)
+		assert len(ions) == 1, f"Expected ONE intersection Segment, got: {ions}"
+		assert isinstance(ions[0], Segment), f"Expected one intersection SEGMENT, got: {ions}"
+		points = [r1.pos1, r2.pos1]
+		assert (
+				ions[0].pos1 in points and ions[0].pos2 in points
+		), f"Intersection segment must be from {points[0]} to {points[1]}, but got: {ions[0].pos1}, {ions[0].pos2}"
+
+		# along the X axis
+		r1, r2 = Ray([0, 0], [1, 0]), Ray([0, 0], [-1, 0])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0]], f"There must be one intersection point [0,0], but got: {ions}"
+		r1, r2 = Ray([0, 0], [2, 0]), Ray([0, 0], [-1, 0])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0]], f"There must be one intersection point [0,0], but got: {ions}"
+		r1, r2 = Ray([0, 0], [-2, 0]), Ray([0, 0], [1, 0])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0]], f"There must be one intersection point [0,0], but got: {ions}"
+		r1, r2 = Ray([0, 0], [-1, 0]), Ray([0, 0], [-1, 0])
+		ions = r1.intersects(r2)
+		assert len(ions) == 1, f"Expected ONE intersection Ray, got: {ions}"
+		assert isinstance(ions[0], Ray), f"Expected intersection RAY, got: {ions}"
+		assert (
+				ions[0].pos1 == r1.pos1 == r2.pos1 and ions[0].pos2 == r1.pos2 == r2.pos2
+		), f"Intersection Ray must be from {r1.pos1} to {r2.pos2}, but got: {ions[0].pos1}, {ions[0].pos2}"
+		r1, r2 = Ray([-2, 0], [1, 0]), Ray([-1, 0], [-3, 0])
+		ions = r1.intersects(r2)
+		assert len(ions) == 1, f"Expected ONE intersection Segment, got: {ions}"
+		assert isinstance(ions[0], Segment), f"Expected one intersection SEGMENT, got: {ions}"
+		points = [r1.pos1, r2.pos1]
+		assert (
+				ions[0].pos1 in points and ions[0].pos2 in points
+		), f"Intersection segment must be from {points[0]} to {points[1]}, but got: {ions[0].pos1}, {ions[0].pos2}"
 	except AssertionError as e:
-		make_scene(s1, s2, *ions)
+		make_scene(r1, r2, *ions)
 		raise e
 
 
