@@ -537,8 +537,14 @@ class Line(Primitive):
 												name=intersection_result_name.format(self.name, object.name))]
 						elif isinstance(line2D_2, Ray):
 							if line2D_1.pos1 in line2D_1 and line2D_1.pos1 in line2D_2:
-								return [Segment(line2D_2.pos1, line2D_1.pos1,
+								if line2D_1.direction != line2D_2.direction:
+									if line2D_1.pos1 != line2D_2.pos1:
+										return [Segment(line2D_2.pos1, line2D_1.pos1,
 												name=intersection_result_name.format(self.name, object.name))]
+									else:
+										return [line2D_1.pos1]
+								else:
+									return [line2D_1]
 							elif line2D_1.pos1 in line2D_2:
 								return [line2D_2]
 							elif line2D_2.pos1 in line2D_1:
