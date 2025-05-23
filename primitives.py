@@ -522,19 +522,23 @@ class Line(Primitive):
 							elif line2D_1.pos2 in line2D_2 and line2D_2.pos1 != line2D_1.pos2:
 								return [Segment(line2D_2.pos1, line2D_1.pos2,
 												name=intersection_result_name.format(self.name, object.name))]
+							else:
+								return [line2D_2.pos1]
 						elif isinstance(line2D_2, Line):
 							return [line2D_1]
 
 					elif isinstance(line2D_1, Ray):
 						if isinstance(line2D_2, (Segment, Vector)):
-							if line2D_1.pos1 in line2D_2 and line2D_1.pos2 in line2D_2:
-								return [line2D_1]
-							elif line2D_1.pos1 in line2D_2:
+							if line2D_2.pos1 in line2D_1 and line2D_2.pos2 in line2D_1:
+								return [line2D_2]
+							elif line2D_2.pos1 in line2D_1 and line2D_2.pos1 != line2D_1.pos1:
 								return [Segment(line2D_2.pos1, line2D_1.pos1,
 												name=intersection_result_name.format(self.name, object.name))]
-							elif line2D_1.pos2 in line2D_2:
-								return [Segment(line2D_2.pos1, line2D_1.pos2,
+							elif line2D_2.pos2 in line2D_1 and line2D_1.pos1 != line2D_2.pos2:
+								return [Segment(line2D_1.pos1, line2D_2.pos2,
 												name=intersection_result_name.format(self.name, object.name))]
+							else:
+								return [line2D_1.pos1]
 						elif isinstance(line2D_2, Ray):
 							if line2D_1.pos1 in line2D_1 and line2D_1.pos1 in line2D_2:
 								if line2D_1.direction != line2D_2.direction:
@@ -814,6 +818,10 @@ class Line(Primitive):
 		return self.intersects(object)
 
 	def __eq__(self, obj: Union['Line', 'Segment', 'Ray', 'Vector']):
+		if type(self) == type(obj) == Segment:
+			return self.pos1 == obj.pos1 and self.pos2 == obj.pos2 or self.pos2 == obj.pos1 and self.pos1 == obj.pos2
+		elif type(self) == type(obj) == Line:
+			return self.pos1 in obj and self.pos2 in obj
 		return type(self) == type(obj) and isinstance(self, Line) and self.pos1 == obj.pos1 and self.pos2 == obj.pos2
 
 	def __add__(self, i) -> 'Line':
