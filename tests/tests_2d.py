@@ -494,7 +494,7 @@ def test_line_segment_intersection():
 		l = Line([0, 0], [2, 2])
 		s = Segment([1, -1], [1, 1])
 		ions = s.intersects(l)
-		assert ions == [Point[1, 1]], f"Expected intersection in [1,0], got: {ions}"
+		assert ions == [Point[1, 1]], f"Expected intersection in [1,1], got: {ions}"
 		s = Segment([3, 3], [2, 2])
 		ions = s.intersects(l)
 		assert len(ions) == 1, f"Expected ONE intersection Segment, got: {ions}"
@@ -524,7 +524,61 @@ def test_line_segment_intersection():
 		raise e
 
 def test_line_ray_intersection():
-	...
+	try:
+		# horizontal
+		l = Line([0, 0], [2, 0])
+		r = Ray([1, 1], [1, 0])
+		ions = r.intersects(l)
+		assert ions == [Point[1, 0]], f"Expected intersection in [1,0], got: {ions}"
+		r = Ray([1, 0], [3, 0])
+		ions = r.intersects(l)
+		assert len(ions) == 1, f"Expected ONE intersection Ray, got: {ions}"
+		assert isinstance(ions[0], Ray), f"Expected one intersection RAY, got: {ions}"
+		assert (
+				ions[0] == r
+		), f"Intersection Ray must to be {r}, got {ions[0]}"
+
+		# vertical
+		l = Line([0, 0], [0, 2])
+		r = Ray([1, 1], [0, 1])
+		ions = r.intersects(l)
+		assert ions == [Point[0, 1]], f"Expected intersection in [0,1], got: {ions}"
+		r = Ray([0, 1], [0, 3])
+		ions = r.intersects(l)
+		assert len(ions) == 1, f"Expected ONE intersection Ray, got: {ions}"
+		assert isinstance(ions[0], Ray), f"Expected one intersection RAY, got: {ions}"
+		assert (
+				ions[0] == r
+		), f"Intersection Ray must to be {r}, got {ions[0]}"
+
+		# from the third to the first quadrant of Cartesian coordinates
+		l = Line([0, 0], [2, 2])
+		r = Ray([1, -1], [1, 1])
+		ions = r.intersects(l)
+		assert ions == [Point[1, 1]], f"Expected intersection in [1,1], got: {ions}"
+		r = Ray([3, 3], [2, 2])
+		ions = r.intersects(l)
+		assert len(ions) == 1, f"Expected ONE intersection Ray, got: {ions}"
+		assert isinstance(ions[0], Ray), f"Expected one intersection RAY, got: {ions}"
+		assert (
+				ions[0] == r
+		), f"Intersection Ray must to be {r}, got {ions[0]}"
+
+		# from the second to the fourth quadrant of Cartesian coordinates
+		l = Line([0, 2], [2, 0])
+		r = Ray([1, 1], [1, -1])
+		ions = r.intersects(l)
+		assert ions == [Point[1, 1]], f"Expected intersection in [1,1], got: {ions}"
+		r = Ray([3, -1], [2, 0])
+		ions = r.intersects(l)
+		assert len(ions) == 1, f"Expected ONE intersection Ray, got: {ions}"
+		assert isinstance(ions[0], Ray), f"Expected one intersection RAY, got: {ions}"
+		assert (
+				ions[0] == r
+		), f"Intersection Ray must to be {r}, got {ions[0]}"
+	except AssertionError as e:
+		make_scene(l, r, *ions)
+		raise e
 
 
 if __name__ == '__main__':

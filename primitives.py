@@ -813,6 +813,9 @@ class Line(Primitive):
 	def __contains__(self, object):
 		return self.intersects(object)
 
+	def __eq__(self, obj: Union['Line', 'Segment', 'Ray', 'Vector']):
+		return type(self) == type(obj) and isinstance(self, Line) and self.pos1 == obj.pos1 and self.pos2 == obj.pos2
+
 	def __add__(self, i) -> 'Line':
 		if isinstance(i, (Point, list, tuple, np.ndarray)):
 			return self.__class__(self.pos1 + i, self.pos2 + i, name=self.name, color=self.color, alpha=self.alpha)
