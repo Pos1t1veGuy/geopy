@@ -280,258 +280,10 @@ class Line(Primitive):
 
 		if isinstance(object, Point):
 			return self.intersects_point(object)
-
 		elif isinstance(object, (Ray, Vector, Segment, Line)):
-			spos1, spos2, opos1, opos2 = eq_len_axeslists(self.pos1.axes, self.pos2.axes, object.pos1.axes, object.pos2.axes)
-			true_dim_indexes_1 = [i for i, (p1, p2) in enumerate(zip(spos1, spos2)) if p1 != p2]
-			true_dim_indexes_2 = [i for i, (p1, p2) in enumerate(zip(opos1, opos2)) if p1 != p2]
-			true_dim_indexes = true_dim_indexes_1 + true_dim_indexes_2
-
-			# If lines has only 1 varying axis
-			if self.true_dimension == object.true_dimension == 1:
-				# Same varying axes. Lines are parallel
-				if true_dim_indexes_1 == true_dim_indexes_2:
-					# Same varying axis. It is intersection on the same line
-					if self.pos1 in object and self.pos2 in object:
-						if any([type(self) == type(object) == cl for cl in [Segment, Vector, Ray]]):
-							# If 2 equals lines/rays/segements/vectors returns itself
-							return [self.copy()]
-						elif isinstance(self, Line):
-							# if 1 line and 1 Ray/Segment/Vector returns Ray/Segment/Vector because it is less
-							return [object.copy()]
-						elif isinstance(object, Line):
-							# if 1 Ray/Segment/Vector and 1 line returns Ray/Segment/Vector because it is less
-							return [self.copy()]
-						elif isinstance(self, Ray) and isinstance(object, (Segment, Vector)):
-							# if 1 ray and 1 segment/vector returns segment/vector because it is less
-							return [object.copy()]
-						elif isinstance(self, (Segment, Vector)) and isinstance(object, Ray):
-							# if 1 segment/vector and 1 ray returns segment/vector because it is less
-							return [self.copy()]
-
-					elif object.pos1 in self and object.pos2 in self:
-						if any([type(self) == type(object) == cl for cl in [Segment, Vector, Ray]]):
-							# If 2 equals lines/rays/segements/vectors returns itself
-							return [self.copy()]
-						elif isinstance(self, Line):
-							# if 1 line and 1 Ray/Segment/Vector returns Ray/Segment/Vector because it is less
-							return [object.copy()]
-						elif isinstance(object, Line):
-							# if 1 Ray/Segment/Vector and 1 line returns Ray/Segment/Vector because it is less
-							return [self.copy()]
-						elif isinstance(self, Ray) and isinstance(object, (Segment, Vector)):
-							# if 1 ray and 1 segment/vector returns segment/vector because it is less
-							return [object.copy()]
-						elif isinstance(self, (Segment, Vector)) and isinstance(object, Ray):
-							# if 1 segment/vector and 1 ray returns segment/vector because it is less
-							return [self.copy()]
-
-					elif self.pos1 in object:
-						if object.pos1 in self and object.pos1 != self.pos1:
-							ion = object.pos1
-						elif object.pos2 in self and object.pos2 != self.pos1:
-							ion = object.pos2
-						else:
-							return [self.pos1.copy()]
-
-						if isinstance(self, Ray) and isinstance(object, Ray):
-							vec1, vec2 = self.vector, object.vector
-							if vec1.compare_directions(vec2):
-								return [Ray(self.pos1, ion, name=intersection_result_name.format(self.name,object.name))]
-							elif vec1.is_reverse_direction(vec2):
-								return [Segment(self.pos1, ion, name=intersection_result_name.format(self.name,object.name))]
-							else:
-								return []
-						else:
-							return [Segment(self.pos1, ion, name=intersection_result_name.format(self.name,object.name))]
-
-					elif object.pos1 in self:
-						if self.pos2 in object and object.pos1 != self.pos2:
-							ion = self.pos2
-						elif self.pos1 in object and object.pos1 != self.pos1:
-							ion = self.pos1
-						else:
-							return [object.pos1.copy()]
-
-						if isinstance(self, Ray) and isinstance(object, Ray):
-							vec1, vec2 = self.vector, object.vector
-							if vec1.compare_directions(vec2):
-								return [Ray(self.pos1, ion, name=intersection_result_name.format(self.name,object.name))]
-							elif vec1.is_reverse_direction(vec2):
-								return [Segment(self.pos1, ion, name=intersection_result_name.format(self.name,object.name))]
-							else:
-								return []
-						else:
-							return [Segment(self.pos1, ion, name=intersection_result_name.format(self.name,object.name))]
-
-					return []
-
-				# Different varying axes. Lines are perpendicular
-				else:
-					ion = [self.pos1[i] if not i in true_dim_indexes else 0 for i in range(max(self.dimension, object.dimension))]
-
-					ion[true_dim_indexes_1[0]] = object.pos1[true_dim_indexes_1[0]]
-					ion[true_dim_indexes_2[0]] = self.pos1[true_dim_indexes_2[0]]
-
-					point = Point(ion, name=intersection_result_name.format(self.name,object.name))
-					return [point] if point in self and point in object else []
-
-			# If first line has only 1 varying axis but second has 2
-			elif self.true_dimension == 1 and object.true_dimension == 2:
-				x = self.pos1[true_dim_indexes_2[0]]
-				y = self.pos1[true_dim_indexes_2[1]]
-				second = Line(
-					Point[ object.pos1[true_dim_indexes_2[0]], object.pos1[true_dim_indexes_2[1]] ],
-					Point[ object.pos2[true_dim_indexes_2[0]], object.pos2[true_dim_indexes_2[1]] ],
-				)
-				point1 = Point([0] * true_dim_indexes_2[0] +
-					[x] +
-					[0] * (true_dim_indexes_2[1] - true_dim_indexes_2[0] - 1) +
-					[second.y_from_x(x)] +
-					[0] * (self.true_dimension - true_dim_indexes_2[1] - 1),
-					name=intersection_result_name.format(self.name,object.name)
-				)
-				point2 = Point([0] * true_dim_indexes_2[0] +
-					[second.x_from_y(y)] +
-					[0] * (true_dim_indexes_2[1] - true_dim_indexes_2[0] - 1) +
-					[y] +
-					[0] * (self.true_dimension - true_dim_indexes_2[1] - 1),
-					name=intersection_result_name.format(self.name,object.name)
-				)
-	
-				if point1 in object and point1 in self:
-					return [point1]
-				elif point2 in object and point2 in self:
-					return [point2]
-
-				elif self.pos1 in object:
-					return [self.pos1]
-				elif self.pos2 in object:
-					return [self.pos2]
-				elif object.pos1 in self:
-					return [object.pos1]
-				elif object.pos2 in self:
-					return [object.pos2]
-
-				else:
-					return []
-
-			# Returns result from last IF statement by changing "self -> object" to "object -> self"
-			elif self.true_dimension == 2 and object.true_dimension == 1:
-				return object.intersects(self)
-
-			# If lines has only 2 varying axes. Calculating intersection in 2D space
-			elif self.true_dimension == object.true_dimension == 2:
-				# We can ignore constant axes [..., axis1, ..., axis2, ...]: There is 2 axes that makes 2D space
-				if true_dim_indexes_1 == true_dim_indexes_2:
-					true_dim_indexes = true_dim_indexes_1
-					line2D_1 = self.__class__(
-						Point[ self.pos1[true_dim_indexes[0]], self.pos1[true_dim_indexes[1]] ],
-						Point[ self.pos2[true_dim_indexes[0]], self.pos2[true_dim_indexes[1]] ],
-					)
-					line2D_2 = object.__class__(
-						Point[ object.pos1[true_dim_indexes[0]], object.pos1[true_dim_indexes[1]] ],
-						Point[ object.pos2[true_dim_indexes[0]], object.pos2[true_dim_indexes[1]] ],
-					)
-					dk = line2D_2.k - line2D_1.k
-
-					if dk:
-						x = to_fraction(line2D_1.m - line2D_2.m, dk)
-						y = line2D_1.k * x + line2D_1.m
-
-						# Returns (x,y) with first varying axes that have been ignored
-						point = Point([0] * true_dim_indexes[0] +
-							[x] +
-							[0] * (true_dim_indexes[1] - true_dim_indexes[0] - 1) +
-							[y] +
-							[0] * (self.true_dimension - true_dim_indexes[1] - 1),
-							name=intersection_result_name.format(self.name,object.name)
-						)
-						return [point] if point in self and point in object else []
-					else:
-						if isinstance(line2D_1, (Vector, Segment)):
-							if isinstance(line2D_2, (Vector, Segment)):
-								if line2D_1.pos1 in line2D_2:
-									if line2D_1.pos2 in line2D_2:
-										return [line2D_1]
-									elif line2D_2.pos1 in line2D_1 and line2D_1.pos1 != line2D_2.pos1:
-										return [Segment(line2D_1.pos1, line2D_2.pos1, name=intersection_result_name.format(self.name,object.name))]
-									elif line2D_2.pos2 in line2D_1 and line2D_1.pos1 != line2D_2.pos2:
-										return [Segment(line2D_1.pos1, line2D_2.pos2, name=intersection_result_name.format(self.name,object.name))]
-									else:
-										return [line2D_1.pos1]
-								elif line2D_1.pos2 in line2D_2:
-									if line2D_1.pos1 in line2D_2:
-										return [line2D_1]
-									elif line2D_2.pos1 in line2D_1 and line2D_1.pos2 != line2D_2.pos1:
-										return [Segment(line2D_1.pos2, line2D_2.pos1, name=intersection_result_name.format(self.name,object.name))]
-									elif line2D_2.pos2 in line2D_1 and line2D_1.pos2 != line2D_2.pos2:
-										return [Segment(line2D_1.pos2, line2D_2.pos2, name=intersection_result_name.format(self.name,object.name))]
-									else:
-										return [line2D_1.pos2]
-							elif isinstance(line2D_2, Ray):
-								if line2D_1.pos1 in line2D_2 and line2D_1.pos2 in line2D_2:
-									return [line2D_1]
-								elif line2D_1.pos1 in line2D_2 and line2D_2.pos1 != line2D_1.pos1:
-									return [Segment(line2D_2.pos1, line2D_1.pos1, name=intersection_result_name.format(self.name,object.name))]
-								elif line2D_1.pos2 in line2D_2 and line2D_2.pos1 != line2D_1.pos2:
-									return [Segment(line2D_2.pos1, line2D_1.pos2, name=intersection_result_name.format(self.name,object.name))]
-							elif isinstance(line2D_2, Line):
-								return [line2D_1]
-
-						elif isinstance(line2D_1, Ray):
-							if isinstance(line2D_2, (Segment, Vector)):
-								if line2D_1.pos1 in line2D_2 and line2D_1.pos2 in line2D_2:
-									return [line2D_1]
-								elif line2D_1.pos1 in line2D_2:
-									return [Segment(line2D_2.pos1, line2D_1.pos1, name=intersection_result_name.format(self.name,object.name))]
-								elif line2D_1.pos2 in line2D_2:
-									return [Segment(line2D_2.pos1, line2D_1.pos2, name=intersection_result_name.format(self.name,object.name))]
-							elif isinstance(line2D_2, Ray):
-								if line2D_1.pos1 in line2D_1 and line2D_1.pos1 in line2D_2:
-									return [Segment(line2D_2.pos1, line2D_1.pos1, name=intersection_result_name.format(self.name,object.name))]
-								elif line2D_1.pos1 in line2D_2:
-									return [line2D_2]
-								elif line2D_2.pos1 in line2D_1:
-									return [line2D_1]
-							elif isinstance(line2D_2, Line):
-								return [line2D_1]
-
-						elif isinstance(line2D_1, Line):
-							return [line2D_2] if line2D_1.pos1 in line2D_2 or line2D_1.pos2 in line2D_2 else []
-
-						return []
-
-			# The intersection of multidimensional lines is the union of Points from their 2D projections
-			else:
-				dim = max(self.dimension, object.dimension)
-
-				self2ds = self.projects_2D(max_dimension=dim)
-				obj2ds = object.projects_2D(max_dimension=dim)
-
-				ios = []
-				for projected_line1, projected_line2 in zip(obj2ds, self2ds):
-					if projected_line1 in projected_line2:
-						ion = projected_line1.intersects(projected_line2)[0]
-						if isinstance(ion, Point):
-							ios.append(ion)
-						else:
-							ios.append(ion.random_point)
-
-				point = []
-				for axis in range(dim):
-					axes = [pos[axis] for pos in ios]
-					if [axis for axis in axes if axis == 0] != axes: # zero list
-						point.append(sorted(axes, key=lambda num: abs(str(num).find('.') - len(str(num))) - 1)[0])
-					else:
-						point.append(0)
-
-				point = Point[point]
-				return [point]
-
+			return self.intersects_line(object)
 		elif hasattr(object, 'intersects') and not isinstance(object, Primitive):
 			return object.intersects(self)
-
 		else:
 			raise IntersectionError(f"Invalid argument type for 'object'. Expected types are Union[Primitive, Point, list, tuple], but received {type(object)}.")
 
@@ -564,6 +316,266 @@ class Line(Primitive):
 			return [point]
 		else:
 			return []
+
+	def intersects_line(self, object: Union['Line', 'Segment', 'Ray', 'Vector']):
+		spos1,spos2, opos1,opos2 = eq_len_axeslists(self.pos1.axes, self.pos2.axes, object.pos1.axes, object.pos2.axes)
+		true_dim_indexes_1 = [i for i, (p1, p2) in enumerate(zip(spos1, spos2)) if p1 != p2]
+		true_dim_indexes_2 = [i for i, (p1, p2) in enumerate(zip(opos1, opos2)) if p1 != p2]
+		true_dim_indexes = true_dim_indexes_1 + true_dim_indexes_2
+
+		# If lines has only 1 varying axis
+		if self.true_dimension == object.true_dimension == 1:
+			# Same varying axes. Lines are parallel
+			if true_dim_indexes_1 == true_dim_indexes_2:
+				# Same varying axis. It is intersection on the same line
+				if self.pos1 in object and self.pos2 in object:
+					if any([type(self) == type(object) == cl for cl in [Segment, Vector, Ray]]):
+						# If 2 equals lines/rays/segements/vectors returns itself
+						return [self.copy()]
+					elif isinstance(self, Line):
+						# if 1 line and 1 Ray/Segment/Vector returns Ray/Segment/Vector because it is less
+						return [object.copy()]
+					elif isinstance(object, Line):
+						# if 1 Ray/Segment/Vector and 1 line returns Ray/Segment/Vector because it is less
+						return [self.copy()]
+					elif isinstance(self, Ray) and isinstance(object, (Segment, Vector)):
+						# if 1 ray and 1 segment/vector returns segment/vector because it is less
+						return [object.copy()]
+					elif isinstance(self, (Segment, Vector)) and isinstance(object, Ray):
+						# if 1 segment/vector and 1 ray returns segment/vector because it is less
+						return [self.copy()]
+
+				elif object.pos1 in self and object.pos2 in self:
+					if any([type(self) == type(object) == cl for cl in [Segment, Vector, Ray]]):
+						# If 2 equals lines/rays/segements/vectors returns itself
+						return [self.copy()]
+					elif isinstance(self, Line):
+						# if 1 line and 1 Ray/Segment/Vector returns Ray/Segment/Vector because it is less
+						return [object.copy()]
+					elif isinstance(object, Line):
+						# if 1 Ray/Segment/Vector and 1 line returns Ray/Segment/Vector because it is less
+						return [self.copy()]
+					elif isinstance(self, Ray) and isinstance(object, (Segment, Vector)):
+						# if 1 ray and 1 segment/vector returns segment/vector because it is less
+						return [object.copy()]
+					elif isinstance(self, (Segment, Vector)) and isinstance(object, Ray):
+						# if 1 segment/vector and 1 ray returns segment/vector because it is less
+						return [self.copy()]
+
+				elif self.pos1 in object:
+					if object.pos1 in self and object.pos1 != self.pos1:
+						ion = object.pos1
+					elif object.pos2 in self and object.pos2 != self.pos1:
+						ion = object.pos2
+					else:
+						return [self.pos1.copy()]
+
+					if isinstance(self, Ray) and isinstance(object, Ray):
+						vec1, vec2 = self.vector, object.vector
+						if vec1.compare_directions(vec2):
+							return [Ray(self.pos1, ion, name=intersection_result_name.format(self.name, object.name))]
+						elif vec1.is_reverse_direction(vec2):
+							return [
+								Segment(self.pos1, ion, name=intersection_result_name.format(self.name, object.name))]
+						else:
+							return []
+					else:
+						return [Segment(self.pos1, ion, name=intersection_result_name.format(self.name, object.name))]
+
+				elif object.pos1 in self:
+					if self.pos2 in object and object.pos1 != self.pos2:
+						ion = self.pos2
+					elif self.pos1 in object and object.pos1 != self.pos1:
+						ion = self.pos1
+					else:
+						return [object.pos1.copy()]
+
+					if isinstance(self, Ray) and isinstance(object, Ray):
+						vec1, vec2 = self.vector, object.vector
+						if vec1.compare_directions(vec2):
+							return [Ray(self.pos1, ion, name=intersection_result_name.format(self.name, object.name))]
+						elif vec1.is_reverse_direction(vec2):
+							return [
+								Segment(self.pos1, ion, name=intersection_result_name.format(self.name, object.name))]
+						else:
+							return []
+					else:
+						return [Segment(self.pos1, ion, name=intersection_result_name.format(self.name, object.name))]
+
+				return []
+
+			# Different varying axes. Lines are perpendicular
+			else:
+				ion = [self.pos1[i] if not i in true_dim_indexes else 0 for i in
+					   range(max(self.dimension, object.dimension))]
+
+				ion[true_dim_indexes_1[0]] = object.pos1[true_dim_indexes_1[0]]
+				ion[true_dim_indexes_2[0]] = self.pos1[true_dim_indexes_2[0]]
+
+				point = Point(ion, name=intersection_result_name.format(self.name, object.name))
+				return [point] if point in self and point in object else []
+
+		# If first line has only 1 varying axis but second has 2
+		elif self.true_dimension == 1 and object.true_dimension == 2:
+			x = self.pos1[true_dim_indexes_2[0]]
+			y = self.pos1[true_dim_indexes_2[1]]
+			second = Line(
+				Point[object.pos1[true_dim_indexes_2[0]], object.pos1[true_dim_indexes_2[1]]],
+				Point[object.pos2[true_dim_indexes_2[0]], object.pos2[true_dim_indexes_2[1]]],
+			)
+			point1 = Point([0] * true_dim_indexes_2[0] +
+						   [x] +
+						   [0] * (true_dim_indexes_2[1] - true_dim_indexes_2[0] - 1) +
+						   [second.y_from_x(x)] +
+						   [0] * (self.true_dimension - true_dim_indexes_2[1] - 1),
+						   name=intersection_result_name.format(self.name, object.name)
+						   )
+			point2 = Point([0] * true_dim_indexes_2[0] +
+						   [second.x_from_y(y)] +
+						   [0] * (true_dim_indexes_2[1] - true_dim_indexes_2[0] - 1) +
+						   [y] +
+						   [0] * (self.true_dimension - true_dim_indexes_2[1] - 1),
+						   name=intersection_result_name.format(self.name, object.name)
+						   )
+
+			if point1 in object and point1 in self:
+				return [point1]
+			elif point2 in object and point2 in self:
+				return [point2]
+
+			elif self.pos1 in object:
+				return [self.pos1]
+			elif self.pos2 in object:
+				return [self.pos2]
+			elif object.pos1 in self:
+				return [object.pos1]
+			elif object.pos2 in self:
+				return [object.pos2]
+
+			else:
+				return []
+
+		# Returns result from last IF statement by changing "self -> object" to "object -> self"
+		elif self.true_dimension == 2 and object.true_dimension == 1:
+			return object.intersects(self)
+
+		# If lines has only 2 varying axes. Calculating intersection in 2D space
+		elif self.true_dimension == object.true_dimension == 2:
+			# We can ignore constant axes [..., axis1, ..., axis2, ...]: There is 2 axes that makes 2D space
+			if true_dim_indexes_1 == true_dim_indexes_2:
+				true_dim_indexes = true_dim_indexes_1
+				line2D_1 = self.__class__(
+					Point[self.pos1[true_dim_indexes[0]], self.pos1[true_dim_indexes[1]]],
+					Point[self.pos2[true_dim_indexes[0]], self.pos2[true_dim_indexes[1]]],
+				)
+				line2D_2 = object.__class__(
+					Point[object.pos1[true_dim_indexes[0]], object.pos1[true_dim_indexes[1]]],
+					Point[object.pos2[true_dim_indexes[0]], object.pos2[true_dim_indexes[1]]],
+				)
+				dk = line2D_2.k - line2D_1.k
+
+				if dk:
+					x = to_fraction(line2D_1.m - line2D_2.m, dk)
+					y = line2D_1.k * x + line2D_1.m
+
+					# Returns (x,y) with first varying axes that have been ignored
+					point = Point([0] * true_dim_indexes[0] +
+								  [x] +
+								  [0] * (true_dim_indexes[1] - true_dim_indexes[0] - 1) +
+								  [y] +
+								  [0] * (self.true_dimension - true_dim_indexes[1] - 1),
+								  name=intersection_result_name.format(self.name, object.name)
+								  )
+					return [point] if point in self and point in object else []
+				else:
+					if isinstance(line2D_1, (Vector, Segment)):
+						if isinstance(line2D_2, (Vector, Segment)):
+							if line2D_1.pos1 in line2D_2:
+								if line2D_1.pos2 in line2D_2:
+									return [line2D_1]
+								elif line2D_2.pos1 in line2D_1 and line2D_1.pos1 != line2D_2.pos1:
+									return [Segment(line2D_1.pos1, line2D_2.pos1,
+													name=intersection_result_name.format(self.name, object.name))]
+								elif line2D_2.pos2 in line2D_1 and line2D_1.pos1 != line2D_2.pos2:
+									return [Segment(line2D_1.pos1, line2D_2.pos2,
+													name=intersection_result_name.format(self.name, object.name))]
+								else:
+									return [line2D_1.pos1]
+							elif line2D_1.pos2 in line2D_2:
+								if line2D_1.pos1 in line2D_2:
+									return [line2D_1]
+								elif line2D_2.pos1 in line2D_1 and line2D_1.pos2 != line2D_2.pos1:
+									return [Segment(line2D_1.pos2, line2D_2.pos1,
+													name=intersection_result_name.format(self.name, object.name))]
+								elif line2D_2.pos2 in line2D_1 and line2D_1.pos2 != line2D_2.pos2:
+									return [Segment(line2D_1.pos2, line2D_2.pos2,
+													name=intersection_result_name.format(self.name, object.name))]
+								else:
+									return [line2D_1.pos2]
+						elif isinstance(line2D_2, Ray):
+							if line2D_1.pos1 in line2D_2 and line2D_1.pos2 in line2D_2:
+								return [line2D_1]
+							elif line2D_1.pos1 in line2D_2 and line2D_2.pos1 != line2D_1.pos1:
+								return [Segment(line2D_2.pos1, line2D_1.pos1,
+												name=intersection_result_name.format(self.name, object.name))]
+							elif line2D_1.pos2 in line2D_2 and line2D_2.pos1 != line2D_1.pos2:
+								return [Segment(line2D_2.pos1, line2D_1.pos2,
+												name=intersection_result_name.format(self.name, object.name))]
+						elif isinstance(line2D_2, Line):
+							return [line2D_1]
+
+					elif isinstance(line2D_1, Ray):
+						if isinstance(line2D_2, (Segment, Vector)):
+							if line2D_1.pos1 in line2D_2 and line2D_1.pos2 in line2D_2:
+								return [line2D_1]
+							elif line2D_1.pos1 in line2D_2:
+								return [Segment(line2D_2.pos1, line2D_1.pos1,
+												name=intersection_result_name.format(self.name, object.name))]
+							elif line2D_1.pos2 in line2D_2:
+								return [Segment(line2D_2.pos1, line2D_1.pos2,
+												name=intersection_result_name.format(self.name, object.name))]
+						elif isinstance(line2D_2, Ray):
+							if line2D_1.pos1 in line2D_1 and line2D_1.pos1 in line2D_2:
+								return [Segment(line2D_2.pos1, line2D_1.pos1,
+												name=intersection_result_name.format(self.name, object.name))]
+							elif line2D_1.pos1 in line2D_2:
+								return [line2D_2]
+							elif line2D_2.pos1 in line2D_1:
+								return [line2D_1]
+						elif isinstance(line2D_2, Line):
+							return [line2D_1]
+
+					elif isinstance(line2D_1, Line):
+						return [line2D_2] if line2D_1.pos1 in line2D_2 or line2D_1.pos2 in line2D_2 else []
+
+					return []
+
+		# The intersection of multidimensional lines is the union of Points from their 2D projections
+		else:
+			dim = max(self.dimension, object.dimension)
+
+			self2ds = self.projects_2D(max_dimension=dim)
+			obj2ds = object.projects_2D(max_dimension=dim)
+
+			ios = []
+			for projected_line1, projected_line2 in zip(obj2ds, self2ds):
+				if projected_line1 in projected_line2:
+					ion = projected_line1.intersects(projected_line2)[0]
+					if isinstance(ion, Point):
+						ios.append(ion)
+					else:
+						ios.append(ion.random_point)
+
+			point = []
+			for axis in range(dim):
+				axes = [pos[axis] for pos in ios]
+				if [axis for axis in axes if axis == 0] != axes:  # zero list
+					point.append(sorted(axes, key=lambda num: abs(str(num).find('.') - len(str(num))) - 1)[0])
+				else:
+					point.append(0)
+
+			point = Point[point]
+			return [point]
 
 	# List of 2D projects of Line with any dimension >2, it is used in multidimension intersections
 	def projects_2D(self, max_dimension: int = None):
