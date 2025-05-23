@@ -330,20 +330,20 @@ class Line(Primitive):
 			if true_dim_indexes_1 == true_dim_indexes_2:
 				# Same varying axis. It is intersection on the same line
 				if self.pos1 in object and self.pos2 in object:
-					if any([type(self) == type(object) == cl for cl in [Segment, Vector, Ray]]):
+					if any([type(self) == type(object) == cl for cl in [Segment, Vector, Ray]]) and type(self) != Line:
 						# If 2 equals lines/rays/segements/vectors returns itself
-						return [self.copy()]
-					elif isinstance(self, Line):
-						# if 1 line and 1 Ray/Segment/Vector returns Ray/Segment/Vector because it is less
-						return [object.copy()]
-					elif isinstance(object, Line):
-						# if 1 Ray/Segment/Vector and 1 line returns Ray/Segment/Vector because it is less
 						return [self.copy()]
 					elif isinstance(self, Ray) and isinstance(object, (Segment, Vector)):
 						# if 1 ray and 1 segment/vector returns segment/vector because it is less
 						return [object.copy()]
 					elif isinstance(self, (Segment, Vector)) and isinstance(object, Ray):
 						# if 1 segment/vector and 1 ray returns segment/vector because it is less
+						return [self.copy()]
+					elif isinstance(self, Line) and isinstance(object, (Vector,Segment,Ray)):
+						# if 1 line and 1 Ray/Segment/Vector returns Ray/Segment/Vector because it is less
+						return [object.copy()]
+					elif isinstance(object, Line) and isinstance(self, (Vector,Segment,Ray)):
+						# if 1 Ray/Segment/Vector and 1 line returns Ray/Segment/Vector because it is less
 						return [self.copy()]
 
 				elif object.pos1 in self and object.pos2 in self:
@@ -553,7 +553,10 @@ class Line(Primitive):
 							return [line2D_1]
 
 					elif isinstance(line2D_1, Line):
-						return [line2D_2] if line2D_1.pos1 in line2D_2 or line2D_1.pos2 in line2D_2 else []
+						if isinstance(line2D_2, Line):
+							return [line2D_2] if line2D_1.pos1 in line2D_2 or line2D_1.pos2 in line2D_2 else []
+						else:
+							return object.intersects(self)
 
 					return []
 

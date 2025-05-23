@@ -444,9 +444,87 @@ def test_rays_intersection():
 		assert (
 				ions[0].pos1 in points and ions[0].pos2 in points
 		), f"Intersection segment must be from {points[0]} to {points[1]}, but got: {ions[0].pos1}, {ions[0].pos2}"
+
+		r1, r2 = Ray([0, 0], [1, 1]), Ray([1, 0], [0, 1])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0.5, 0.5]], f"There must be one intersection point [0.5, 0.5], but got: {ions}"
+		r2 = Ray([.5, 0], [.5, 1])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0.5, 0.5]], f"There must be one intersection point [0.5, 0.5], but got: {ions}"
+		r2 = Ray([0, .5], [1, .5])
+		ions = r1.intersects(r2)
+		assert ions == [Point[0.5, 0.5]], f"There must be one intersection point [0.5, 0.5], but got: {ions}"
 	except AssertionError as e:
 		make_scene(r1, r2, *ions)
 		raise e
+
+def test_line_segment_intersection():
+	try:
+		# horizontal
+		l = Line([0,0],[2,0])
+		s = Segment([1,1], [1,0])
+		ions = s.intersects(l)
+		assert ions == [Point[1,0]], f"Expected intersection in [1,0], got: {ions}"
+		s = Segment([1,0], [3,0])
+		ions = s.intersects(l)
+		assert len(ions) == 1, f"Expected ONE intersection Segment, got: {ions}"
+		assert isinstance(ions[0], Segment), f"Expected one intersection SEGMENT, got: {ions}"
+		assert ions[0].length == 2, f"Expected 1.0 lengths Segment, but it is: {ions[0].length}"
+		points = [s.pos1, s.pos2]
+		assert (
+				ions[0].pos1 in points and ions[0].pos2 in points
+		), f"Intersection segment must be from {points[0]} to {points[1]}, but it is {ions[0].pos1} and {ions[0].pos2}"
+
+		# vertical
+		l = Line([0,0],[0,2])
+		s = Segment([1,1], [0,1])
+		ions = s.intersects(l)
+		assert ions == [Point[0,1]], f"Expected intersection in [0,1], got: {ions}"
+		s = Segment([0,1], [0,3])
+		ions = s.intersects(l)
+		assert len(ions) == 1, f"Expected ONE intersection Segment, got: {ions}"
+		assert isinstance(ions[0], Segment), f"Expected one intersection SEGMENT, got: {ions}"
+		assert ions[0].length == 2, f"Expected 1.0 lengths Segment, but it is: {ions[0].length}"
+		points = [s.pos1, s.pos2]
+		assert (
+				ions[0].pos1 in points and ions[0].pos2 in points
+		), f"Intersection segment must be from {points[0]} to {points[1]}, but it is {ions[0].pos1} and {ions[0].pos2}"
+
+		# from the third to the first quadrant of Cartesian coordinates
+		l = Line([0, 0], [2, 2])
+		s = Segment([1, -1], [1, 1])
+		ions = s.intersects(l)
+		assert ions == [Point[1, 1]], f"Expected intersection in [1,0], got: {ions}"
+		s = Segment([3, 3], [2, 2])
+		ions = s.intersects(l)
+		assert len(ions) == 1, f"Expected ONE intersection Segment, got: {ions}"
+		assert isinstance(ions[0], Segment), f"Expected one intersection SEGMENT, got: {ions}"
+		assert 1 < ions[0].length < 2, f"Expected 2.0 length Segment, but it is: {ions[0].length}"
+		points = [s.pos1, s.pos2]
+		assert (
+				ions[0].pos1 in points and ions[0].pos2 in points
+		), f"Intersection segment must be from {points[0]} to {points[1]}, but it is {ions[0].pos1} and {ions[0].pos2}"
+
+		# from the second to the fourth quadrant of Cartesian coordinates
+		l = Line([0, 2], [2, 0])
+		s = Segment([1, 1], [1, -1])
+		ions = s.intersects(l)
+		assert ions == [Point[1, 1]], f"Expected intersection in [1,1], got: {ions}"
+		s = Segment([3, -1], [2, 0])
+		ions = s.intersects(l)
+		assert len(ions) == 1, f"Expected ONE intersection Segment, got: {ions}"
+		assert isinstance(ions[0], Segment), f"Expected one intersection SEGMENT, got: {ions}"
+		assert 1 < ions[0].length < 2, f"Expected segment length between 1 and 2, but it is: {ions[0].length}"
+		points = [s.pos1, s.pos2]
+		assert (
+				ions[0].pos1 in points and ions[0].pos2 in points
+		), f"Intersection segment must be from {points[0]} to {points[1]}, but it is {ions[0].pos1} and {ions[0].pos2}"
+	except AssertionError as e:
+		make_scene(l, s, *ions)
+		raise e
+
+def test_line_ray_intersection():
+	...
 
 
 if __name__ == '__main__':
