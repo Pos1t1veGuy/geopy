@@ -453,9 +453,6 @@ class Line(Primitive):
 			elif object.pos2 in self:
 				return [object.pos2]
 
-			else:
-				return []
-
 		# Returns result from last IF statement by changing "self -> object" to "object -> self"
 		elif self.true_dimension == 2 and object.true_dimension == 1:
 			return object.intersects(self)
@@ -562,8 +559,6 @@ class Line(Primitive):
 						else:
 							return object.intersects(self)
 
-					return []
-
 		# The intersection of multidimensional lines is the union of Points from their 2D projections
 		else:
 			dim = max(self.dimension, object.dimension)
@@ -572,24 +567,84 @@ class Line(Primitive):
 			obj2ds = object.projects_2D(max_dimension=dim)
 
 			ios = []
+			non_point_intersections = []
 			for projected_line1, projected_line2 in zip(obj2ds, self2ds):
 				if projected_line1 in projected_line2:
 					ion = projected_line1.intersects(projected_line2)[0]
 					if isinstance(ion, Point):
 						ios.append(ion)
 					else:
-						ios.append(ion.random_point)
+						non_point_intersections.append(ion)
 
-			point = []
-			for axis in range(dim):
-				axes = [pos[axis] for pos in ios]
-				if [axis for axis in axes if axis == 0] != axes:  # zero list
-					point.append(sorted(axes, key=lambda num: abs(str(num).find('.') - len(str(num))) - 1)[0])
-				else:
-					point.append(0)
+			if ios:
+				point = []
+				for axis in range(dim):
+					# List of values along the same axis from each 2D intersection point, like [x, x, x, ...] or [z, z, z, ...]
+					axes = [pos[axis] for pos in ios]
+					if [axis for axis in axes if axis == 0] != axes:  # if axes list does not consist only of zeros
+						'''
+						The AXES list contains coordinate values from all 2D projections for a given axis
+						Some values may be zero (if the corresponding projection doesn't include this axis)
+						The rest (non-zero) values should be approximately equal, with minor floating point differences
+						We choose the value with the highest number of decimal digits as the most precise one
+						'''
+						point.append(sorted(axes, key=lambda num: abs(num.find('.') - len(num)) - 1)[0])
+					else: # if axes list contains only zeros
+						point.append(0)
 
-			point = Point[point]
-			return [point]
+				point = Point(point, name=intersection_result_name.format(self.name, object.name))
+				return [point]
+			elif non_point_intersections:
+				# if only segments
+				if all([isinstance(obj, Segment) for obj in non_point_intersections]):
+					# intersection of multidimensional lines
+					points = []
+					for seg1 in non_point_intersections:
+						for pos in [seg1.pos1, seg1.pos2]:
+							for seg2 in non_point_intersections:
+								if seg1 != seg2:
+									if not pos in seg2:
+										break
+							else:
+								points.append(pos)
+
+					if len(points) <= 1:
+						return points
+					else:
+						return Segment(points[0],points[1],name=intersection_result_name.format(self.name, object.name))
+
+				# if only rays
+				elif all([isinstance(obj, Ray) for obj in non_point_intersections]):
+					# if ray vectors are equal
+					if all(ray.vector.to_zero.normalize == lst[0].vector.to_zero.normalize for ray in lst):
+						for ray1 in non_point_intersections:
+							for ray2 in non_point_intersections:
+								if ray1 != ray2:
+									if not ray1.pos1 in ray2:
+										break
+							else:
+								return [ray1.pos1]
+					else: # rays lie
+						points = []
+						for ray1 in non_point_intersections:
+							for pos in [ray1.pos1, ray1.pos2]:
+								for ray2 in non_point_intersections:
+									if ray1 != ray2:
+										if not pos in ray2:
+											break
+								else:
+									points.append(pos)
+
+						if len(points) <= 1:
+							return points
+						else:
+							return Segment(points[0],points[1],name=intersection_result_name.format(self.name, object.name))
+
+				# if only lines
+				elif all([isinstance(obj, Line) for obj in non_point_intersections]):
+					return [self.copy()]
+
+		return []
 
 	# List of 2D projects of Line with any dimension >2, it is used in multidimension intersections
 	def projects_2D(self, max_dimension: int = None):

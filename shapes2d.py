@@ -335,7 +335,6 @@ class Polygon(Shape2D):
 		origin = self.vertices[0]
 		segments = self.segments_by_fromto_point(origin)
 		perps = gram_schmidt([segments[0].to_vector.to_zero, segments[1].to_vector.to_zero])
-		print(self.vertices, self.center_of_mass)
 		return Space(origin, perps, name=space_of_object_name.format(self.name)).at_pos(self.center_of_mass)
 
 	@property
