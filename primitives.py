@@ -74,6 +74,8 @@ class Point(Primitive, metaclass=PointMeta):
 	def project_to_space(self, space: 'AffineSpace') -> 'Point':
 		normal = space.normal
 		p, ln = eq_len_axeslists((self - space.origin).axes, normal.to_zero.pos2.axes)
+		# Project the vector from 'space.origin' to 'self' onto the normal vector of the space.
+		# This gives the signed distance from 'self' to the space along the normal.
 		dot = float(np.dot(p, ln) / np.dot(ln, ln))
 		if dot == 0:
 			return self
