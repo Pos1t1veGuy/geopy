@@ -323,7 +323,7 @@ class Scene3D(Scene):
 					direction.x, direction.y, direction.z,
 					color=vector.color,
 					alpha=vector.alpha,
-					arrow_length_ratio=0.04
+					arrow_length_ratio=0.1
 				)
 				self.ax.plot(
 					[vector.pos1.x, vector.pos2.x],

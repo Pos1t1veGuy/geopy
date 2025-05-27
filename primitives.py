@@ -1255,8 +1255,7 @@ class Vector(Segment, metaclass=VectorMeta):
 			)
 		elif isinstance(other, Vector):
 			return Vector(
-				self.pos1,
-				Point([self.pos2[i] + other.direction[i] for i in range(self.dimension)]),
+				self.pos1, self.pos2 + other.normalize.pos2,
 				name=self.name, alpha=self.alpha, color=self.color
 			)
 		elif isinstance(other, Point):
@@ -1438,7 +1437,7 @@ class Angle:
 		
 	@property
 	def bisector(self) -> Ray:
-		return Ray(self.midpos, (self.pos1 + self.pos2) / 2, name=angle_bisector_name.format(self.name))
+		return Ray(self.midpos, (self.vec1 + self.vec2).pos2, name=angle_bisector_name.format(self.name))
 
 	@property
 	def dimension(self) -> int:
@@ -1456,17 +1455,20 @@ class Angle:
 			return 'acute'
 
 	@staticmethod
-	def between(pr1: 'Primitive', pr2: 'Primitive') -> 'Angle':
-		int_point = pr1.intersects(pr2)[0]
-		if int_point:
-			if isinstance(int_point, Point):
-				pos1 = pr1.pos1 if pr1.pos1 != int_point else pr1.pos2
-				pos2 = pr2.pos1 if pr2.pos1 != int_point else pr2.pos2
-				return Angle(pos1, int_point, pos2, name=angle_between_name.format(pr1.name, pr2.name))
+	def between(pr1: 'Line', pr2: 'Line') -> 'Angle':
+		if isinstance(pr1, Line) and isinstance(pr2, Line):
+			int_point = pr1.intersects(pr2)[0]
+			if int_point:
+				if isinstance(int_point, Point):
+					pos1 = pr1.pos1 if pr1.pos1 != int_point else pr1.pos2
+					pos2 = pr2.pos1 if pr2.pos1 != int_point else pr2.pos2
+					return Angle(pos1, int_point, pos2, name=angle_between_name.format(pr1.name, pr2.name))
+				else:
+					raise ConstructError(f'Two lines {pr1} and {pr2} have infinity common points: {int_point}')
 			else:
-				raise ConstructError(f'Two primitives {pr1} and {pr2} have infinity common points: {int_point}')
+				raise ConstructError(f'Two lines {pr1} and {pr2} do not have common points: {int_point}')
 		else:
-			raise ConstructError(f'Two primitives {pr1} and {pr2} do not have common points: {int_point}')
+			raise ConstructError(f'Expected 2 lines/rays/segments/vectors, got {type(pr1)} and {type(pr2)}')
 
 	def __add__(self, num: float) -> float:
 		return float(self)+num
@@ -1637,7 +1639,7 @@ class AffineSpace:
 		return self.object_to_local(obj)
 
 	def get_local_objects(self) -> List[Primitive]:
-		return self.get_local_polygons() + self.get_local_points() + self.get_local_primitives()
+		return self.get_local_polygons() + self.get_local_points() + self.get_local_lines()
 
 	def get_local_points(self) -> List[Primitive]:
 		return [self.point_to_local(obj) for obj in self.global_objects if isinstance(obj, Point)]
@@ -1649,10 +1651,11 @@ class AffineSpace:
 				pols.append(self.polygon_to_local(obj))
 		return pols
 
-	def get_local_primitives(self) -> List[Primitive]:
+	def get_local_lines(self, type = Line) -> List[Line]:
+		# 'type' may be Line/Segment/Ray/Vector
 		prs = []
 		for obj in self.global_objects:
-			if isinstance(obj, Line):
+			if isinstance(obj, type):
 				prs.append(self.primitive_to_local(obj))
 		return prs
 
