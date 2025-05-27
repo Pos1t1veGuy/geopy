@@ -40,8 +40,16 @@ def test_lines_intersection():
 
 		l2 = l1.copy()
 		ions = symmetric_intersection(l1,l2)
-		assert ions == [l1], f'Lines intersection must be a Line, but it is {ions}'
+		assert ions == [l1] == [l2], f'Lines intersection must be a Line, but it is {ions}'
 
+	except AssertionError as e:
+		make_scene(l1, l2, *ions)
+		raise e
+
+def test_line_space_intersection():
+	ions = []
+	try:
+		...
 
 	except AssertionError as e:
 		make_scene(l1, l2, *ions)
