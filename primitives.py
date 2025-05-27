@@ -1515,6 +1515,43 @@ class AffineSpace:
 		else:
 			raise ConstructError(f'"vectors" elements must be list of points or vectors, not {vectors}')
 
+	def intersects(self, object: Union[Primitive, Point, list, tuple]) -> List[Point]:
+		if isinstance(object, (list, tuple, np.ndarray)):
+			object = Point(*object)
+
+		if isinstance(object, Point):
+			'''
+			There are 2 matrices: M and N. M is a matrix of vectors of Space, and N is the same matrix but with the addition of a vector from the input point
+			to the origin of the point of space. If the ranks of the matrices are equal, then the point lies in space, otherwise - no.
+			M - mat1, N - mat2.
+			'''
+			dim = max(object.dimension, self.origin.dimension, *[v.dimension for v in self.vectors])
+
+			mat = [v.to_zero.pos2.float_axes.as_list(dim) for v in self.vectors]
+			mat1 = np.array(mat)
+			last_vector = object - self.origin
+			mat2 = np.array(mat + [last_vector.float_axes.as_list(dim)])
+			return [object] if matrix_rank(mat1) == matrix_rank(mat2) else []
+
+		elif isinstance(object, (Line, Ray, Segment, Vector)):
+			if self.normal.is_perpendicular(object):
+				return []
+			else:
+				new_object = self.primitive_projection(object)
+				return [
+					Point(point.axes, name=intersection_result_name.format(self.name,object.name))
+					for point in object.intersects(new_object) if point in self and point in object
+				]
+
+		elif isinstance(object, (AffineSpace)):
+			...
+
+		elif hasattr(object, 'intersects') and not isinstance(object, Primitive):
+			return object.intersects(self)
+
+		else:
+			raise IntersectionError(f"Invalid argument type for 'object'. Expected types are Union[Primitive, Point, list, tuple], but received {type(object)}.")
+
 	# converts default point to point in local coordinate system
 	def point_to_local(self, point: Union['Point', list, tuple]) -> 'Point':
 		if isinstance(point, (list, tuple, np.ndarray)):
@@ -1572,43 +1609,6 @@ class AffineSpace:
 			solution[pivot_col] = value
 
 		return Vector[solution]
-
-	def intersects(self, object: Union[Primitive, Point, list, tuple]) -> List[Point]:
-		if isinstance(object, (list, tuple, np.ndarray)):
-			object = Point(*object)
-
-		if isinstance(object, Point):
-			'''
-			There are 2 matrices: M and N. M is a matrix of vectors of Space, and N is the same matrix but with the addition of a vector from the input point
-			to the origin of the point of space. If the ranks of the matrices are equal, then the point lies in space, otherwise - no.
-			M - mat1, N - mat2.
-			'''
-			dim = max(object.dimension, self.origin.dimension, *[v.dimension for v in self.vectors])
-
-			mat = [v.to_zero.pos2.float_axes.as_list(dim) for v in self.vectors]
-			mat1 = np.array(mat)
-			last_vector = object - self.origin
-			mat2 = np.array(mat + [last_vector.float_axes.as_list(dim)])
-			return [object] if matrix_rank(mat1) == matrix_rank(mat2) else []
-
-		elif isinstance(object, (Line, Ray, Segment, Vector)):
-			if self.normal.is_perpendicular(object):
-				return []
-			else:
-				new_object = self.primitive_projection(object)
-				return [
-					Point(point.axes, name=intersection_result_name.format(self.name,object.name))
-					for point in object.intersects(new_object) if point in self and point in object
-				]
-
-		elif isinstance(object, (AffineSpace)):
-			...
-
-		elif hasattr(object, 'intersects') and not isinstance(object, Primitive):
-			return object.intersects(self)
-
-		else:
-			raise IntersectionError(f"Invalid argument type for 'object'. Expected types are Union[Primitive, Point, list, tuple], but received {type(object)}.")
 
 	def copy(self) -> 'AffineSpace':
 		return self.__class__(self.origin, self.vectors, objects=self.global_objects, name=self.name)
