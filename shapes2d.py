@@ -13,7 +13,8 @@ from .base_shapes import *
 
 class Polygon(Shape2D):
 	def __init__(self, *args: List[[ Point, Point, ... ]],
-		name: str = 'Polygon', pos: Point = None, segment_object = Segment, color: str = 'cyan', segments_color: str = 'r', alpha: float = 0.5, space_check: bool = True):
+		name: str = 'Polygon', pos: Point = None, segment_object = Segment, color: str = 'cyan',
+		segments_color: str = 'r', alpha: float = 0.5, space_check: bool = True):
 
 		if len(args) < 3:
 			raise ConstructError(f'Number of points list at constructor must be >2, not {len(args)}')
@@ -41,7 +42,9 @@ class Polygon(Shape2D):
 
 		self._setup(segment_object)
 
-		self.pos = Point(*pos) if isinstance(pos, (tuple, np.ndarray, list)) else (pos if isinstance(pos, Point) else self.center_of_mass)
+		if isinstance(pos, (tuple, np.ndarray, list)):
+			pos = Point(*pos)
+		self.pos =  pos if isinstance(pos, Point) else self.center_of_mass
 
 	def _setup(self, segment_object: 'Primitive'):
 		for i, vertice in enumerate(self.vertices):
@@ -74,16 +77,25 @@ class Polygon(Shape2D):
 
 		if self.space_check:
 			try:
-				space = self.normal_space
+				self.normal_space = self.get_normal_space()
 			except ConstructError:
 				raise ConstructError('A multidimensional (3D+, not 2D) polygon must lie on a 2D surface (2D Space with 2 equal size orthogonal vectors)')
 
 			for point in self.vertices:
-				if not point in space:
+				if not point in self.normal_space:
 					raise ConstructError('A multidimensional (3D+, not 2D) polygon must lie on a 2D surface (2D Space with 2 equal size orthogonal vectors)')
 
-	def intersects(self, object: Union[Primitive, Shape, Point, tuple, list], check_inside: bool = True) -> List[Point]:
-		return self.intersects_2d(object, check_inside=check_inside)
+	def intersects(self, object: Union[Primitive, Shape, Point, tuple, list, np.ndarray],
+				   check_inside: bool = True) -> List[Point]:
+		if object.dimension <= 2:
+			return self.intersects_2d(object, check_inside=check_inside)
+		else:
+			space = self.normal_space.copy()
+			ions = space.intersects(object)
+
+			local_ions = [space.point_to_local(ion) for ion in ions]
+			pol2d = [pol for pol in space.get_local_polygons() if pol.name == self.name][0]
+			return [ion for ion, lion in zip(ions,local_ions) if lion in pol2d]
 
 	def intersects_2d(self, object: Union[Primitive, Shape, Point, tuple, list], check_inside: bool = True) -> List[Point]:
 		if isinstance(object, (tuple, list, np.ndarray)):
@@ -103,7 +115,7 @@ class Polygon(Shape2D):
 
 			if points:
 				return points
-			# Segment and Vector may be inside polygon and do not intersect it, so it will be checked in self.inside_2d
+		# Segment and Vector may be inside polygon and do not intersect it, so it will be checked in self.inside_2d
 
 		elif isinstance(object, (Ray, Line)):
 			points = []
@@ -114,7 +126,7 @@ class Polygon(Shape2D):
 							points.append(point)
 
 			return points
-			# Ray and Line can not be inside polygon and do not intersect it, so it will not be checked in self.inside_2d
+		# Ray and Line can not be inside polygon and do not intersect it, so it will not be checked in self.inside_2d
 
 		elif isinstance(object, Polygon):
 			points = []
@@ -168,8 +180,8 @@ class Polygon(Shape2D):
 			if ray in segment:
 				ios.append(segment.intersects(ray)[0])
 
-		return len(ios) % 2 != 0 and len(ios) != 0
 		# if ray intersection count % 2 != 0 and != 0 then point inside
+		return len(ios) % 2 != 0 and len(ios) != 0
 
 	def intersection_area(self, object: Union[Primitive, Shape2D, Point, tuple, list]) -> 'Polygon':
 		intersections = self.intersects(object)
@@ -279,13 +291,14 @@ class Polygon(Shape2D):
 
 		root.mainloop()
 
-	def at_pos(self, point: Union[Point, list, tuple]) -> 'Polygon':
-		if isinstance(point, (list,tuple,np.ndarray)):
+	def at_pos(self, point: Union[Point, list, tuple, np.ndarray]) -> 'Polygon':
+		if isinstance(point, (list, tuple, np.ndarray)):
 			point = Point(*point)
 		shift = point - self.pos1
-		return self.__class__(*[vertex + shift for vertex in self.vertices], name=self.name, pos=self.pos + point, segment_object = Segment)
+		return self.__class__(*[vertex + shift for vertex in self.vertices],
+							  name=self.name, pos=self.pos + point, segment_object=Segment, space_check=False)
 
-	def to_pos(self, point: Union[Point, list, tuple]):
+	def to_pos(self, point: Union[Point, list, tuple, np.ndarray]):
 		if isinstance(point, (list,tuple,np.ndarray)):
 			point = Point(*point)
 
@@ -294,7 +307,7 @@ class Polygon(Shape2D):
 		self.vertices = [vertex + shift for vertex in self.vertices]
 		self._setup(self.segments[0].__class__)
 
-	def distane_to(object: Union[Primitive, Shape, Point, tuple, list]) -> Segment:
+	def distane_to(object: Union[Primitive, Shape, Point, tuple, list, np.ndarray]) -> Segment:
 		if isinstance(object, (tuple, list, np.ndarray)):
 			object = Point(*object)
 
@@ -312,6 +325,14 @@ class Polygon(Shape2D):
 
 		return []
 
+	def get_normal_space(self) -> 'Space':
+		origin = self.vertices[0]
+		segments = self.segments_by_fromto_point(origin)
+		perps = gram_schmidt([segments[0].to_vector.to_zero, segments[1].to_vector.to_zero])
+		sp = Space(origin, perps, name=space_of_object_name.format(self.name)).at_pos(self.center_of_mass)
+		sp.add_object(self.copy(space_check=False))
+		return sp
+
 	def plot(self):
 		x = [vertice.x for vertice in self.vertices]
 		y = [vertice.y for vertice in self.vertices]
@@ -327,15 +348,17 @@ class Polygon(Shape2D):
 
 		plt.show()
 
-	def copy(self) -> 'Polygon':
-		return self.__class__(self.vertices, name=self.name, pos=self.pos, segment_object=self.segment_object)
+	def copy(self, space_check: bool = True) -> 'Polygon':
+		return self.__class__(*self.vertices,
+			  name=self.name, pos=self.pos, segment_object=self.segment_object, color=self.color, alpha=self.alpha,
+			  segments_color=self.segments_color, space_check=space_check)
 
 	@property
-	def normal_space(self) -> 'Space':
-		origin = self.vertices[0]
-		segments = self.segments_by_fromto_point(origin)
-		perps = gram_schmidt([segments[0].to_vector.to_zero, segments[1].to_vector.to_zero])
-		return Space(origin, perps, name=space_of_object_name.format(self.name)).at_pos(self.center_of_mass)
+	def projected_polygon(self) -> 'Polygon2D':
+		if self.dimension > 2:
+			return [pol for pol in self.normal_space.get_local_polygons() if pol.name == self.name][0]
+		else:
+			return self
 
 	@property
 	def dimension(self) -> int:
@@ -354,8 +377,9 @@ class Polygon(Shape2D):
 
 	@property
 	def area(self) -> float:
+		pol = self.projected_polygon
 		return to_fraction(abs(sum([
-			segment.pos1[0] * segment.pos2[1] - segment.pos1[1] * segment.pos2[0] for segment in self.segments
+			segment.pos1[0] * segment.pos2[1] - segment.pos1[1] * segment.pos2[0] for segment in pol.segments
 		])), 2)
 	@property
 	def perimeter(self) -> float:
@@ -394,10 +418,14 @@ class Polygon(Shape2D):
 
 	@property
 	def min_pos(self) -> float:
-		return Point([ min([vertice[i] for vertice in self.vertices]) for i in range(self.dimension) ], name=f'{self.name}_min')
+		return Point([
+			min([vertice[i] for vertice in self.vertices]) for i in range(self.dimension)
+		], name=f'{self.name}_min')
 	@property
 	def max_pos(self) -> float:
-		return Point([ max([vertice[i] for vertice in self.vertices]) for i in range(self.dimension) ], name=f'{self.name}_max')
+		return Point([
+			max([vertice[i] for vertice in self.vertices]) for i in range(self.dimension)
+		], name=f'{self.name}_max')
 
 	@property
 	def box(self):
@@ -409,24 +437,36 @@ class Polygon(Shape2D):
 	def __contains__(self, object):
 		return self.intersects(object, check_inside=True)
 
-	def __add__(self, point: Union[Point, list, tuple]) -> 'Polygon':
-		point = Point(point)
-		return self.__class__(*[ vertice + point for vertice in self.vertices ], name=self.name, pos=self.pos + point, segment_object = Segment)
-	def __sub__(self, point: Union[Point, list, tuple]) -> 'Polygon':
-		point = Point(point)
-		return self.__class__(*[ vertice - point for vertice in self.vertices ], name=self.name, pos=self.pos - point, segment_object = Segment)
-	def __mul__(self, point: Union[Point, list, tuple]) -> 'Polygon':
-		point = Point(point)
-		return self.__class__(*[ vertice * point for vertice in self.vertices ], name=self.name, pos=self.pos * point, segment_object = Segment)
-	def __truediv__(self, point: Union[Point, list, tuple]) -> 'Polygon':
-		point = Point(point)
-		return self.__class__(*[ vertice / point for vertice in self.vertices ], name=self.name, pos=self.pos / point, segment_object = Segment)
-	def __floordiv__(self, point: Union[Point, list, tuple]) -> 'Polygon':
-		point = Point(point)
-		return self.__class__(*[ vertice // point for vertice in self.vertices ], name=self.name, pos=self.pos // point, segment_object = Segment)
-	def __pow__(self, point: Union[Point, list, tuple]) -> 'Polygon':
-		point = Point(point)
-		return self.__class__(*[ vertice ** point for vertice in self.vertices ], name=self.name, pos=self.pos ** point, segment_object = Segment)
+	def __add__(self, point: Union[Point, list, tuple, np.ndarray]) -> 'Polygon':
+		if isinstance(point, (list, tuple, np.ndarray)):
+			point = Point(*point)
+		return self.__class__(*[ vertice + point for vertice in self.vertices ],
+							  name=self.name, pos=self.pos + point, segment_object = Segment)
+	def __sub__(self, point: Union[Point, list, tuple, np.ndarray]) -> 'Polygon':
+		if isinstance(point, (list, tuple, np.ndarray)):
+			point = Point(*point)
+		return self.__class__(*[ vertice - point for vertice in self.vertices ],
+							  name=self.name, pos=self.pos - point, segment_object = Segment)
+	def __mul__(self, point: Union[Point, list, tuple, np.ndarray]) -> 'Polygon':
+		if isinstance(point, (list, tuple, np.ndarray)):
+			point = Point(*point)
+		return self.__class__(*[ vertice * point for vertice in self.vertices ],
+							  name=self.name, pos=self.pos * point, segment_object = Segment)
+	def __truediv__(self, point: Union[Point, list, tuple, np.ndarray]) -> 'Polygon':
+		if isinstance(point, (list, tuple, np.ndarray)):
+			point = Point(*point)
+		return self.__class__(*[ vertice / point for vertice in self.vertices ],
+							  name=self.name, pos=self.pos / point, segment_object = Segment)
+	def __floordiv__(self, point: Union[Point, list, tuple, np.ndarray]) -> 'Polygon':
+		if isinstance(point, (list, tuple, np.ndarray)):
+			point = Point(*point)
+		return self.__class__(*[ vertice // point for vertice in self.vertices ],
+							  name=self.name, pos=self.pos // point, segment_object = Segment)
+	def __pow__(self, point: Union[Point, list, tuple, np.ndarray]) -> 'Polygon':
+		if isinstance(point, (list, tuple, np.ndarray)):
+			point = Point(*point)
+		return self.__class__(*[ vertice ** point for vertice in self.vertices ],
+							  name=self.name, pos=self.pos ** point, segment_object = Segment)
 
 	def __len__(self):
 		return int(self.perimeter)
@@ -436,7 +476,8 @@ class Polygon(Shape2D):
 		return f'{self.__class__.__name__}({self.vertices}, name="{self.name}", pos={self.pos})'
 
 class Rectangle(Polygon): # only 2D
-	def __init__(self, pos1: Point, pos2: Point, name: str = 'Box', pos: Point = None, segment_object = Segment):
+	def __init__(self, pos1: Point, pos2: Point, name: str = 'Box', pos: Point = None, segment_object = Segment,
+				 color: str = 'cyan', segments_color: str = 'r', alpha: str = 0.5, space_check: bool = True):
 		if isinstance(pos1, (tuple, list, np.ndarray)):
 			pos1 = Point(pos1)
 		if isinstance(pos2, (tuple, list, np.ndarray)):
@@ -445,22 +486,29 @@ class Rectangle(Polygon): # only 2D
 		self.pos1 = pos1
 		self.pos2 = pos2
 
-		super().__init__(pos1, Point(pos1.x, pos2.y, pos1.z), pos2, Point(pos2.x, pos1.y, pos2.z), name=name, pos=pos, segment_object=segment_object)
+		super().__init__(pos1, Point(pos1.x, pos2.y, pos1.z), pos2, Point(pos2.x, pos1.y, pos2.z),
+						 pos=pos, name=name, segment_object=segment_object, color=color, segments_color=segments_color,
+						 alpha=alpha, space_check=space_check)
 
-	def copy(self) -> 'Polygon':
-		return self.__class__(self.pos1, self.pos2, name=self.name, pos=self.pos, segment_object=self.segment_object)
+	def copy(self, space_check: bool = True) -> 'Polygon':
+		return self.__class__(self.pos1, self.pos2, name=self.name, pos=self.pos, segment_object=self.segment_object,
+				color=self.color, alpha=self.alpha, segments_color=self.segments_color, space_check=space_check)
 
 	@property
 	def circum_circle(self) -> 'Circle':
 		return Circle(self.center_of_mass, Segment(self.center_of_mass, self.vertices[0]).length)
 
 class Triangle(Polygon):
-	def __init__(self, pos1: Point, pos2: Point, pos3: Point, name: str = 'Triangle', pos: Point = None, segment_object = Segment, space_check: bool = True):
-		super().__init__(pos1, pos2, pos3, name=name, pos=pos, segment_object=segment_object, space_check=space_check)
+	def __init__(self, pos1: Point, pos2: Point, pos3: Point, name: str = 'Triangle', pos: Point = None,
+				 segment_object = Segment, color: str = 'cyan', segments_color: str = 'r', alpha: str = 0.5,
+				 space_check: bool = True):
+		super().__init__(pos1, pos2, pos3, name=name, pos=pos, segment_object=segment_object, space_check=space_check,
+						 color=color, segments_color=segments_color, alpha=alpha)
 		self.side1, self.side2, self.side3 = self.segments
 
-	def copy(self) -> 'Polygon':
-		return self.__class__(self.pos1, self.pos2, self.pos3, name=self.name, pos=self.pos, segment_object=self.segment_object)
+	def copy(self, space_check: bool = True) -> 'Polygon':
+		return self.__class__(self.pos1, self.pos2, self.pos3, name=self.name, pos=self.pos, space_check=space_check,
+		segment_object=self.segment_object, color=self.color, alpha=self.alpha, segments_color=self.segments_color)
 
 	@property
 	def circum_circle(self) -> 'Circle':

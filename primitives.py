@@ -58,7 +58,7 @@ class Point(Primitive, metaclass=PointMeta):
 			raise ConstructError(f"height_to not implemented for type {type(object)}")
 
 		if self == second_pos:
-			raise ConstructError(f'Point {self} is on line {object}, can not construct height with 0 length from point to same')
+			raise ConstructError(f'Point {self} is on {object}, can not construct height with 0 length from point to same')
 		return Segment(self, second_pos, name=height_name.format(self.name))
 
 	# Returns a Point that makes with self Point a new Line that makes perpendicular to line
@@ -125,7 +125,7 @@ class Point(Primitive, metaclass=PointMeta):
 			return all([ axis == 0 for axis in self.axes ])
 		elif isinstance(obj, Point):
 			max_dimension = max( len(self.axes), len(obj.axes) )
-			return self.axes.as_list(length=max_dimension) == obj.axes.as_list(length=max_dimension)
+			return self.float_axes.as_list(length=max_dimension) == obj.float_axes.as_list(length=max_dimension)
 		else:
 			return list(self.axes) == obj
 
@@ -324,6 +324,9 @@ class Line(Primitive):
 		true_dim_indexes_2 = [i for i, (p1, p2) in enumerate(zip(opos1, opos2)) if p1 != p2]
 		true_dim_indexes = true_dim_indexes_1 + true_dim_indexes_2
 
+		# TODO: Поправить гигаусловия с уникальными результатами
+		# И убрать костыли
+
 		# If lines has only 1 varying axis
 		if self.true_dimension == object.true_dimension == 1:
 			# Same varying axes. Lines are parallel
@@ -403,8 +406,6 @@ class Line(Primitive):
 					else:
 						return [Segment(self.pos1, ion, name=intersection_result_name.format(self.name, object.name))]
 
-				return []
-
 			# Different varying axes. Lines are perpendicular
 			else:
 				ion = [self.pos1[i] if not i in true_dim_indexes else 0 for i in
@@ -438,7 +439,6 @@ class Line(Primitive):
 						   [0] * (self.true_dimension - true_dim_indexes_2[1] - 1),
 						   name=intersection_result_name.format(self.name, object.name)
 						   )
-
 			if point1 in object and point1 in self:
 				return [point1]
 			elif point2 in object and point2 in self:
@@ -452,6 +452,8 @@ class Line(Primitive):
 				return [object.pos1]
 			elif object.pos2 in self:
 				return [object.pos2]
+			else:
+				return []
 
 		# Returns result from last IF statement by changing "self -> object" to "object -> self"
 		elif self.true_dimension == 2 and object.true_dimension == 1:
@@ -559,6 +561,12 @@ class Line(Primitive):
 						else:
 							return object.intersects(self)
 
+			else:
+				space_vectors = gram_schmidt([self, object])
+				space = Space([0], space_vectors, objects=[self, object])
+				objs = space.get_local_objects()
+				return objs[0].intersects(objs[1])
+
 		# The intersection of multidimensional lines is the union of Points from their 2D projections
 		else:
 			dim = max(self.dimension, object.dimension)
@@ -579,18 +587,10 @@ class Line(Primitive):
 			if ios:
 				point = []
 				for axis in range(dim):
-					# List of values along the same axis from each 2D intersection point, like [x, x, x, ...] or [z, z, z, ...]
+					# List of values along the same axis from each 2D intersection point, like [x,x,...] or [z,z,...]
 					axes = [pos[axis] for pos in ios]
-					if [axis for axis in axes if axis == 0] != axes:  # if axes list does not consist only of zeros
-						'''
-						The AXES list contains coordinate values from all 2D projections for a given axis
-						Some values may be zero (if the corresponding projection doesn't include this axis)
-						The rest (non-zero) values should be approximately equal, with minor floating point differences
-						We choose the value with the highest number of decimal digits as the most precise one
-						'''
-						point.append(sorted(axes, key=lambda num: abs(num.find('.') - len(num)) - 1)[0])
-					else: # if axes list contains only zeros
-						point.append(0)
+					non_zero_axes = [axis for axis in axes if axis != 0]
+					point.append(sum(non_zero_axes)/len(non_zero_axes) if non_zero_axes != [] else 0)
 
 				point = Point(point, name=intersection_result_name.format(self.name, object.name))
 				return [point]
@@ -611,7 +611,9 @@ class Line(Primitive):
 					if len(points) <= 1:
 						return points
 					else:
-						return Segment(points[0],points[1],name=intersection_result_name.format(self.name, object.name))
+						return [
+							Segment(points[0], points[1], name=intersection_result_name.format(self.name, object.name))
+						]
 
 				# if only rays
 				elif all([isinstance(obj, Ray) for obj in non_point_intersections]):
@@ -624,7 +626,7 @@ class Line(Primitive):
 										break
 							else:
 								return [ray1.pos1]
-					else: # rays lie
+					else: # rays has diffetent direction but lie on same line
 						points = []
 						for ray1 in non_point_intersections:
 							for pos in [ray1.pos1, ray1.pos2]:
@@ -647,29 +649,22 @@ class Line(Primitive):
 		return []
 
 	# List of 2D projects of Line with any dimension >2, it is used in multidimension intersections
+	# Gets YX, XZ, ZY if 3D
 	def projects_2D(self, max_dimension: int = None):
 		dim = max_dimension if max_dimension else self.dimension
 		projects_count = dim * (dim - 1) // 2
-		
-		if self.dimension > 2:
-			lines = []
-			for i, j in combinations(range(dim), 2):
-				pos1 = np.zeros(dim); pos2 = np.zeros(dim)
-				pos1[i] = self.pos1[i]; pos1[j] = self.pos1[j]
-				pos2[i] = self.pos2[i]; pos2[j] = self.pos2[j]
-				vector = pos2 - pos1
 
-				if Point(pos1) != Point(pos2 + vector):
-					lines.append(Line(pos1, pos2 + vector, name=projection_name.format(self.name)))
-				else:
-					lines.append(self.copy())
-			return lines
+		lines = []
+		for i, j in combinations(range(dim), 2):
+			pos1 = np.zeros(dim); pos2 = np.zeros(dim)
+			pos1[i] = self.pos1[i]; pos1[j] = self.pos1[j]
+			pos2[i] = self.pos2[i]; pos2[j] = self.pos2[j]
 
-		elif self.dimension == 2:
-			return [self.copy()]
-
-		else:
-			return []
+			if Point(pos1) != Point(pos2):
+				lines.append(Line(pos1, pos2, name=projection_name.format(self.name)))
+			else:
+				lines.append(Point(pos1, name=projection_name.format(self.name)))
+		return lines
 
 	# Only for 2D lines. Returns Y of point on Line by X of point on Line
 	def y_from_x(self, x: float, return_none: bool = False) -> float:
@@ -877,7 +872,11 @@ class Line(Primitive):
 			return self.pos1 == obj.pos1 and self.pos2 == obj.pos2 or self.pos2 == obj.pos1 and self.pos1 == obj.pos2
 		elif type(self) == type(obj) == Line:
 			return self.pos1 in obj and self.pos2 in obj
-		return type(self) == type(obj) and isinstance(self, Line) and self.pos1 == obj.pos1 and self.pos2 == obj.pos2
+
+		if type(self) == type(obj) and isinstance(self, Line):
+			return self.pos1 == obj.pos1 and self.pos2 == obj.pos2
+		else:
+			return False
 
 	def __add__(self, i) -> 'Line':
 		if isinstance(i, (Point, list, tuple, np.ndarray)):
@@ -1126,7 +1125,7 @@ class Vector(Segment, metaclass=VectorMeta):
 
 		vec1 = self.normalize.to_zero
 		vec2 = vector.normalize.to_zero
-		return Angle.between(vec1,vec2).degrees == 90 if vec1.pos2 != vec2.pos2 else False
+		return round(Angle.between(vec1,vec2).degrees, 6) == 90 if vec1.pos2 != vec2.pos2 else False
 
 	def is_parallel(self, vector: Union['Point', tuple, list, 'Line', 'Ray', 'Vector', 'Segment']) -> bool:
 		if isinstance(vector, (tuple, list, Point, np.ndarray)):
@@ -1388,6 +1387,10 @@ class Angle:
 		else:
 			raise ConstructError(f'Constructor "default_unit" argument must to be one of {units}, not {default_unit}')
 
+	def copy(self) -> 'Angle':
+		return self.__class__(self.pos1, self.midpos, self.pos2,
+							  name=self.name, default_unit=self.default_unit, color=self.color, alpha=self.alpha)
+
 	@property
 	def vec1(self) -> Vector:
 		return Vector(self.midpos, self.pos1, name=f'{self.name}_vec1', alpha=self.alpha, color=self.color)
@@ -1522,18 +1525,15 @@ class AffineSpace:
 		if isinstance(point, (list, tuple, np.ndarray)):
 			point = Point(*point)
 
-		basis_matrix = np.array([list(vec.pos2.axes) + [0] * (self.dimension - vec.pos2.dimension) for vec in self.vectors]).T
+		basis_matrix = np.array([vec.to_zero.pos2.axes.as_list(self.true_dimension) for vec in self.vectors]).T
 		eq = [0] * (point.dimension - len(basis_matrix[0]))
 
-		matrix = []
-		for i, axis in enumerate(basis_matrix):
-			matrix.append([*axis, *eq])
-
+		matrix = [[*axis, *eq] for axis in basis_matrix]
 		dot = np.dot(matrix, point.axes)
-		return Point(list(self.origin.axes + Point[dot]), name=affine_space_global_object_name.format(self.name), color=point.color, alpha=point.alpha)
+		return Point(dot, name=affine_space_global_object_name.format(self.name), color=point.color, alpha=point.alpha)
 
 	def get_normal(self) -> Vector:
-		matrix = [v.pos2.axes + [Fraction(0)] * (self.dimension - v.pos2.dimension + 1) for v in self.vectors]
+		matrix = [v.to_zero.pos2.axes.as_list(self.true_dimension+1) for v in self.vectors]
 		num_rows = len(matrix)
 		num_cols = len(matrix[0])
 		
@@ -1581,10 +1581,10 @@ class AffineSpace:
 			'''
 			dim = max(object.dimension, self.origin.dimension, *[v.dimension for v in self.vectors])
 
-			mat = [v.to_zero.pos2.axes + [Fraction(0)] * (dim - v.to_zero.pos2.dimension) for v in self.vectors]
+			mat = [v.to_zero.pos2.float_axes.as_list(dim) for v in self.vectors]
 			mat1 = np.array(mat)
 			last_vector = object - self.origin
-			mat2 = np.array(mat + [last_vector.axes + [Fraction(0)] * (dim - last_vector.dimension)])
+			mat2 = np.array(mat + [last_vector.float_axes.as_list(dim)])
 			return [object] if matrix_rank(mat1) == matrix_rank(mat2) else []
 
 		elif isinstance(object, (Line, Ray, Segment, Vector)):
@@ -1592,7 +1592,10 @@ class AffineSpace:
 				return []
 			else:
 				new_object = self.primitive_projection(object)
-				return [Point(point.axes, name=intersection_result_name.format(self.name,object.name)) for point in object.intersects(new_object)]
+				return [
+					Point(point.axes, name=intersection_result_name.format(self.name,object.name))
+					for point in object.intersects(new_object) if point in self and point in object
+				]
 
 		elif isinstance(object, (AffineSpace)):
 			...
@@ -1603,13 +1606,16 @@ class AffineSpace:
 		else:
 			raise IntersectionError(f"Invalid argument type for 'object'. Expected types are Union[Primitive, Point, list, tuple], but received {type(object)}.")
 
+	def copy(self) -> 'AffineSpace':
+		return self.__class__(self.origin, self.vectors, objects=self.global_objects, name=self.name)
+
 	# Moves the Space. New Space will intersects "point"
 	def at_pos(self, point: Point) -> 'Space':
 		if isinstance(point, (list, tuple, np.ndarray)):
 			point = Point(point)
 			
 		shift = point - self.origin
-		objects = [pr + shift for pr in self.global_objects]
+		objects = [obj + shift for obj in self.global_objects]
 		return self.__class__(self.origin + shift, self.vectors, name=self.name, objects=objects)
 
 	def primitive_projection(self, pr: Union[Line, Ray, Segment, Vector, Point]) -> Union[Line, Ray, Segment, Vector, Point]:
@@ -1624,18 +1630,63 @@ class AffineSpace:
 			else:
 				return Point(*pos1.axes, name=projection_name.format(pr.name))
 
+	def add_object(self, obj: Union[Primitive, Shape2D]) -> Union[Primitive, Shape2D]:
+		self.global_objects.append(obj)
+		return self.object_to_local(obj)
+
 	def get_local_objects(self) -> List[Primitive]:
-		local_objects = []
+		return self.get_local_polygons() + self.get_local_points() + self.get_local_primitives()
+
+	def get_local_points(self) -> List[Primitive]:
+		return [self.point_to_local(obj) for obj in self.global_objects if isinstance(obj, Point)]
+
+	def get_local_polygons(self) -> List[Primitive]:
+		pols = []
 		for obj in self.global_objects:
-			if isinstance(obj, Point):
-				local_objects.append(self.point_to_local(obj))
-			elif isinstance(obj, Line): # it may be Line/Ray/Segment/Vector
-				local_objects.append(
-					obj.__class__(self.point_to_local(obj.pos1), self.point_to_local(obj.pos2), name=obj.name, alpha=obj.alpha, color=obj.color)
-				)
-			else:
-				raise ConstructError(f"Unsupported type: '{obj.__class__.__name__}', supports only Point, Line, Ray, Segment or Vector")
-		return local_objects
+			if isinstance(obj, Shape2D):
+				pols.append(self.polygon_to_local(obj))
+		return pols
+
+	def get_local_primitives(self) -> List[Primitive]:
+		prs = []
+		for obj in self.global_objects:
+			if isinstance(obj, Line):
+				prs.append(self.primitive_to_local(obj))
+		return prs
+
+	def polygon_to_local(self, pol: 'Polygon') -> 'Polygon':
+		from .shapes2d import Polygon
+		return Polygon(
+			*[self.point_to_local(vertice) for vertice in pol.vertices],
+			pos=self.point_to_local(pol.pos), name=pol.name, segment_object=pol.segment_object, color=pol.color,
+			segments_color=pol.segments_color, alpha=pol.alpha, space_check=False)
+
+	def polygon_to_global(self, pol: 'Polygon') -> 'Polygon':
+		return obj.__class__(
+			*[self.point_to_global(vertice) for vertice in obj.vertices], name=obj.name,
+			pos=self.point_to_global(obj.pos), segment_object=obj.segment_object, color=obj.color,
+			segments_color=obj.segments_color, alpha=obj.alpha)
+
+	def primitive_to_local(self, pr: 'Primitive') -> 'Primitive':
+		return pr.__class__(self.point_to_local(pr.pos1), self.point_to_local(pr.pos2),
+					  name=pr.name, alpha=pr.alpha, color=pr.color)
+
+	def primitive_to_global(self, pr: 'Primitive') -> 'Primitive':
+		return obj.__class__(self.point_to_global(obj.pos1), self.point_to_global(obj.pos2),
+					  name=obj.name, alpha=obj.alpha, color=obj.color)
+
+	def object_to_local(self, obj: Union[Primitive, Shape2D]) -> Union[Primitive, Shape2D]:
+		from .shapes2d import Polygon
+		if isinstance(obj, Point):
+			return self.point_to_local(obj)
+		elif isinstance(obj, Line):  # it may be Line/Ray/Segment/Vector
+			return self.primitive_to_local(obj)
+		elif isinstance(obj, Polygon):
+			return self.polygon_to_local(obj)
+		else:
+			raise ConstructError(
+				f"Unsupported type: '{obj.__class__.__name__}', supports only Primitives or Shapes2D"
+			)
 
 	@property
 	def scene(self) -> 'Scene':
@@ -1657,21 +1708,23 @@ class AffineSpace:
 		return self.get_local_objects()
 
 	@property
-	def dimension(self) -> int:
+	def true_dimension(self) -> int:
 		return len(self.vectors)
+	@property
+	def dimension(self) -> int:
+		return max([vec.dimension for vec in self.vectors])
 
 	@property
 	def as_geometry(self) -> str:
-		return f'Sp = {self.origin} + ' + " + ".join([ f'{letters[i]}*{self.vectors[i].to_zero}' for i in range(self.dimension) ])
+		return f'Sp = {self.origin} + ' + " + ".join([ f'{letters[i]}*{self.vectors[i].to_zero}' for i in range(self.true_dimension) ])
 
 	def __contains__(self, object):
-		s = self.intersects(object)
-		return s
+		return self.intersects(object)
 
 	def __str__(self):
-		return f"{self.__class__.__name__}[{self.origin}, {self.dimension}D]"
+		return f"{self.__class__.__name__}[{self.origin}, {self.true_dimension}D]"
 	def __repr__(self):
-		return f"{self.__class__.__name__}{self.dimension}D({self.origin}, {self.vectors})"
+		return f"{self.__class__.__name__}{self.true_dimension}D({self.origin}, {self.vectors})"
 
 ASpace = AffineSpace
 

@@ -48,7 +48,7 @@ class AxesList(list):
 		if length == -1 or len(self) == length:
 			return list(self)
 		elif len(self) < length:
-			return list(self) + [Fraction(0)] * (length - len(self))
+			return list(self) + [0] * (length - len(self))
 		else:
 			return list(self)[:length]
 

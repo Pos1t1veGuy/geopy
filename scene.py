@@ -31,7 +31,8 @@ class Scene2D(Scene):
 		for object in args:
 			self.add(object)
 
-	def add(self, object: Union[Shape, Primitive, Point]):
+	def add(self, object: Union['Shape', 'Primitive', 'Point']):
+		object = object.project_to(2)
 		if isinstance(object, Point):
 			self.add_point(object)
 		elif isinstance(object, Vector):
@@ -63,7 +64,7 @@ class Scene2D(Scene):
 		c = composite.circles[0]
 		
 
-	def add_circle(self, circle: Circle):
+	def add_circle(self, circle: 'Circle'):
 		self.points.append(circle.center)
 
 		self.points.append(circle.center - [circle.radius, 0])
@@ -75,7 +76,7 @@ class Scene2D(Scene):
 			MPLEllipse(xy=(circle.center.x, circle.center.y), width=circle.diameter, height=circle.diameter, edgecolor=circle.color, fc='None', alpha=circle.alpha)
 		)
 	
-	def add_oval(self, oval: Oval):
+	def add_oval(self, oval: 'Oval'):
 		self.points.append(oval.center)
 
 		self.points.append(oval.center - [oval.radius_x, 0])
@@ -87,40 +88,42 @@ class Scene2D(Scene):
 			MPLEllipse(xy=(oval.center.x, oval.center.y), width=oval.diameter_x, height=oval.diameter_y, edgecolor=oval.color, fc='None', alpha=oval.alpha)
 		)
 
-	def add_polygon(self, polygon: Polygon):
+	def add_polygon(self, polygon: 'Polygon'):
 		for point in polygon.vertices:
 			self.points.append(point)
 
 		polygon = MPLPolygon([(point.x, point.y) for point in polygon.vertices], edgecolor=polygon.segments_color, facecolor=polygon.color, alpha=polygon.alpha)
 		self.ax.add_patch(polygon)
 
-	def add_segment(self, segment: Segment):
+	def add_segment(self, segment: 'Segment'):
 		self.ax.add_line(
 			Line2D([segment.pos1.x, segment.pos2.x], [segment.pos1.y, segment.pos2.y], linestyle='--', color=segment.color, marker='.', alpha=segment.alpha)
 		)
 		self.points.append(segment.pos1)
 		self.points.append(segment.pos2)
 
-	def add_ray(self, ray: Ray):
+	def add_ray(self, ray: 'Ray'):
 		self.rays.append(ray)
 		self.points.append(ray.pos1)
 		circle = Circle(ray.pos1, 6)
 		self.points.append(circle.intersects(ray)[0])
 
-	def add_vector(self, vector: Vector):
+	def add_vector(self, vector: 'Vector'):
 		self.ax.add_line(Line2D([vector.pos1.x, vector.pos2.x], [vector.pos1.y, vector.pos2.y], color=vector.color, marker='.', linewidth=2, alpha=vector.alpha))
 		self.ax.annotate('', xy=(vector.pos2.x, vector.pos2.y), xytext=(vector.pos1.x, vector.pos1.y), arrowprops=dict(arrowstyle='->', color=vector.color))
 		self.points.append(vector.pos1)
 		self.points.append(vector.pos2)
 
-	def add_line(self, line: Line):
+	def add_line(self, line: 'Line'):
 		self.lines.append(line)
+		self.points.append(line.pos1)
+		self.points.append(line.pos2)
 
-	def add_point(self, point: Point):
+	def add_point(self, point: 'Point'):
 		self.ax.scatter(point.x, point.y, color=point.color, marker='o', zorder=5, s=point.size, alpha=point.alpha)
 		self.points.append(point)
 
-	def draw_line(self, line: Line):
+	def draw_line(self, line: 'Line'):
 		self.ax.add_line(Line2D([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], color=line.color, alpha=line.alpha))
 
 	def show(self):
@@ -174,10 +177,11 @@ class Scene2D(Scene):
 							else:
 								raise ConstructError(f'Intersection of Scene and Line gets invalid result {ions}, it must be Point, Line, Ray or Segment list')
 				else:
+					self.ax.axis('equal')
+					plt.show()
 					self.points.append(scene_rect.center_of_mass.height_to(line).pos2)
-					self.show()
 					return
-				
+
 			# Scene draws lines and rays to the end by the min and max points that makes box. Intersection with box is a finish point of line and ray
 		else:
 			for line in self.lines:
@@ -199,7 +203,7 @@ class Scene3D(Scene):
 		for object in args:
 			self.add(object)
 
-	def add(self, object: Union[Shape, Primitive, Point]):
+	def add(self, object: Union['Shape', 'Primitive', 'Point']):
 		if isinstance(object, Point):
 			self.add_point(object)
 		elif isinstance(object, Vector):
@@ -225,16 +229,16 @@ class Scene3D(Scene):
 		else:
 			raise SceneError(f'Unexpected type {type(object)}. Object must be Shape/Primitive/Point')
 
-	def add_point(self, point: Point):
+	def add_point(self, point: 'Point'):
 		self.ax.scatter(float(point.x), float(point.y), float(point.z), color=point.color, marker='o', alpha=point.alpha)
 		self.points.append(point)
 
-	def add_vector(self, vector: Vector):
+	def add_vector(self, vector: 'Vector'):
 		self.vectors.append(vector)
 		self.points.append(vector.pos1)
 		self.points.append(vector.pos2)
 
-	def add_segment(self, segment: Segment):
+	def add_segment(self, segment: 'Segment'):
 		self.ax.plot(
 			[segment.pos1.x, segment.pos2.x], [segment.pos1.y, segment.pos2.y], [segment.pos1.z, segment.pos2.z],
 			linestyle='--', color=segment.color, marker='.', alpha=segment.alpha,
@@ -242,17 +246,17 @@ class Scene3D(Scene):
 		self.points.append(segment.pos1)
 		self.points.append(segment.pos2)
 		
-	def add_ray(self, ray: Ray):
+	def add_ray(self, ray: 'Ray'):
 		self.rays.append(ray)
 		self.points.append(ray.pos1)
 		self.points.append(ray.pos2)
 
-	def add_line(self, line: Line):
+	def add_line(self, line: 'Line'):
 		self.lines.append(line)
 		self.points.append(line.pos1)
 		self.points.append(line.pos2)
 
-	def add_circle(self, circle: Circle):
+	def add_circle(self, circle: 'Circle'):
 		cx, cy, cz = circle.center_of_mass.x, circle.center_of_mass.y, circle.center_of_mass.z
 		r = circle.radius
 
@@ -270,11 +274,11 @@ class Scene3D(Scene):
 		self.points.append(circle.center - [0, circle.radius])
 		self.points.append(circle.center + [0, circle.radius])
 
-	def add_shape3d(self, shape: Shape3D):
+	def add_shape3d(self, shape: 'Shape3D'):
 		for polygon in shape.edges:
 			self.add_polygon(polygon)
 
-	def add_polygon(self, polygon: Polygon):
+	def add_polygon(self, polygon: 'Polygon'):
 		for point in polygon.vertices:
 			self.points.append(point)
 
@@ -282,7 +286,7 @@ class Scene3D(Scene):
 		polygon = Poly3DCollection(verts, alpha=polygon.alpha, facecolor=polygon.color, edgecolor=polygon.segments_color, color=polygon.color)
 		self.ax.add_collection3d(polygon)
 
-	def draw_line(self, line: Line):
+	def draw_line(self, line: 'Line'):
 		self.ax.plot([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], [line.pos1.z, line.pos2.z], color=line.color, alpha=line.alpha)
 
 	def show(self):
@@ -300,16 +304,14 @@ class Scene3D(Scene):
 			max_point = Point[max_x, max_y, max_z]
 
 			if max_point.axes != min_point.axes:
+				x,y,z = 0,0,0
 				if max_point.x == min_point.x: 
-					max_point.x += 1
-					min_point.x -= 1
+					x=1
 				if max_point.y == min_point.y:
-					max_point.y += 1
-					min_point.y -= 1
+					y=1
 				if max_point.z == min_point.z:
-					max_point.z += 1
-					min_point.z -= 1
-				scene_rect = Box(max_point, min_point)
+					z=1
+				scene_rect = Box(max_point + Point[x,y,z], min_point - Point[x,y,z])
 			else:
 				scene_rect = Box(max_point, [0,0,0])
 
@@ -349,10 +351,10 @@ class Scene3D(Scene):
 
 			for line in self.lines:
 				ions = scene_rect.intersects(line)
-				self.draw_line(line) #TODO: поправить
-				#self.ax.plot([ions[0].x, ions[1].x], [ions[0].y, ions[1].y], [ions[0].z, ions[1].z], color=line.color)
+				self.ax.plot([ions[0].x, ions[1].x], [ions[0].y, ions[1].y], [ions[0].z, ions[1].z], color=line.color)
 
-			# Scene draws lines and rays to the end by the min and max points that makes box. Intersection with box is a finish point of line and ray
+			# Scene draws lines and rays to the end by the min and max points that makes box.
+			# Intersection with box is a finish point of line and ray.
 		else:
 			for line in self.lines:
 				self.ax.plot([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], [line.pos1.z, line.pos2.z], color=line.color)
@@ -391,7 +393,7 @@ class Composite(Shape): # TODO: finish boolean
 		else:
 			raise ValueError(f"Unknown mode: {self.mode}")
 
-	def intersects(self, object: Union[Primitive, Shape], check_inside: bool = True) -> List[Point]:
+	def intersects(self, object: Union['Primitive', 'Shape'], check_inside: bool = True) -> List['Point']:
 		if not isinstance(object, Composite):
 			res = []
 			for shape in self.shapes:
@@ -430,14 +432,14 @@ class Composite(Shape): # TODO: finish boolean
 			Scene3D(*self.shapes, self.center_of_mass).show()
 
 	@property
-	def circles(self) -> List[Circle]:
+	def circles(self) -> List['Circle']:
 		return [shape for shape in self.shapes if isinstance(shape, Circle)]
 	@property
-	def polygons(self) -> List[Circle]:
+	def polygons(self) -> List['Polygon']:
 		return [shape for shape in self.shapes if isinstance(shape, Polygon)]
 
 	@property
-	def intersections(self) -> List[Point]:
+	def intersections(self) -> List['Point']:
 		points = []
 		for shape1 in self.shapes:
 			for shape2 in self.shapes:
@@ -477,7 +479,7 @@ class Composite(Shape): # TODO: finish boolean
 		return f'{self.__class__.__name__}({self.shapes}, name="{self.name}", pos={self.pos})'
 
 class PrimitiveGroup: # TODO: finish boolean
-	def __init__(self, *args: List[Primitive], name: str = 'PrimitiveGroup'):
+	def __init__(self, *args: List['Primitive'], name: str = 'PrimitiveGroup'):
 		self.primitives = []
 		self.name = name
 
@@ -490,7 +492,7 @@ class PrimitiveGroup: # TODO: finish boolean
 			else:
 				raise ConstructError(f'Composite constructor arg primitives[{i}] is not a Primitive: {pr}')
 
-	def intersects(self, object: Union[Primitive]) -> List[Point]:
+	def intersects(self, object: Union['Primitive']) -> List['Point']:
 		if not isinstance(object, Composite) and not isinstance(object, PrimitiveGroup):
 			return [ pr.intersects(object) for pr in self.primitives if pr in object ]
 		else:
@@ -514,7 +516,7 @@ class PrimitiveGroup: # TODO: finish boolean
 		return max([ shape.dimension for shape in self.shapes])
 
 	@property
-	def intersections(self) -> List[Point]:
+	def intersections(self) -> List['Point']:
 		points = []
 		for pr1 in self.primitives:
 			for pr2 in self.primitives:

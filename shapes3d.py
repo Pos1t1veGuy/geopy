@@ -8,7 +8,8 @@ from .base_shapes import *
 
 
 class Parallelepiped(Shape3D):
-	def __init__(self, pos1: Union['Point', list, tuple], pos2: Union['Point', list, tuple], name: str = 'Parallelepiped'):
+	def __init__(self, pos1: Union['Point', list, tuple], pos2: Union['Point', list, tuple], name='Parallelepiped',
+				 segment_object=Segment, color: str = 'cyan', segments_color: str = 'r', alpha: float = 0.5):
 		if isinstance(pos1, (list, tuple)):
 			pos1 = Point(*pos1)
 		if isinstance(pos2, (list, tuple)):
@@ -25,6 +26,11 @@ class Parallelepiped(Shape3D):
 		self.vector_y = Vector(pos1, Point(pos2.x, pos1.y, pos1.z))
 		self.vector_z = Vector(pos1, Point(pos1.x, pos2.y, pos1.z))
 
+		self.segment_object = segment_object
+		self.segments_color = segments_color
+		self.color = color
+		self.alpha = alpha
+
 	def make_vertices(self, pos1: 'Point', pos2: 'Point') -> List['Point']:
 		return [Point(x, y, z) for x, y, z in product([pos1.x, pos2.x], [pos1.y, pos2.y], [pos1.z, pos2.z])]
 
@@ -37,26 +43,27 @@ class Parallelepiped(Shape3D):
 				if object in edge:
 					return [object]
 
-		if isinstance(object, (Ray, Line)):
+		elif isinstance(object, (Segment, Vector, Shape2D)):
 			ions = []
-			for segment in self.segments:
-				for ion in segment.intersects(object):
-					if not ion in ions:
-						ions.append(ion)
-			return ions
-
-		if isinstance(object, (Segment, Vector, Shape2D)):
-			ions = []
-			for segment in self.segments:
-				for ion in segment.intersects(object):
+			for edge in self.edges:
+				for ion in edge.intersects(object):
 					if not ion in ions:
 						ions.append(ion)
 			if ions:
 				return ions
 
-		if isinstance(object, Shape3D):
+		elif isinstance(object, (Ray, Line)):
+			ions = []
+			for edge in self.edges:
+				for ion in edge.intersects(object):
+					if not ion in ions:
+						ions.append(ion)
+
+			return ions
+
+		elif isinstance(object, Shape3D):
 			if not isinstance(object, Sphere):
-				... # Сделать пересечение полигонов и многомерных примитивов в классе MDPolygon
+				...
 			else:
 				...
 
@@ -96,12 +103,18 @@ class Parallelepiped(Shape3D):
 	@property
 	def edges(self) -> List['Polygon']:
 		return [
-			Polygon(self.vertices[0], self.vertices[1], self.vertices[3], self.vertices[2], name='Polygon0'),  # down
-			Polygon(self.vertices[4], self.vertices[5], self.vertices[7], self.vertices[6], name='Polygon1'),  # up
-			Polygon(self.vertices[0], self.vertices[1], self.vertices[5], self.vertices[4], name='Polygon2'),  # front
-			Polygon(self.vertices[2], self.vertices[3], self.vertices[7], self.vertices[6], name='Polygon3'),  # back
-			Polygon(self.vertices[0], self.vertices[2], self.vertices[6], self.vertices[4], name='Polygon4'),  # left
-			Polygon(self.vertices[1], self.vertices[3], self.vertices[7], self.vertices[5], name='Polygon5'),  # right
+			Polygon(self.vertices[0], self.vertices[1], self.vertices[3], self.vertices[2], name='Polygon0',color=self.color,
+					alpha=self.alpha, segment_object=self.segment_object, segments_color=self.segments_color),  # down
+			Polygon(self.vertices[4], self.vertices[5], self.vertices[7], self.vertices[6], name='Polygon1',color=self.color,
+					alpha=self.alpha, segment_object=self.segment_object, segments_color=self.segments_color),  # up
+			Polygon(self.vertices[0], self.vertices[1], self.vertices[5], self.vertices[4], name='Polygon2',color=self.color,
+					alpha=self.alpha, segment_object=self.segment_object, segments_color=self.segments_color),  # front
+			Polygon(self.vertices[2], self.vertices[3], self.vertices[7], self.vertices[6], name='Polygon3',color=self.color,
+					alpha=self.alpha, segment_object=self.segment_object, segments_color=self.segments_color),  # back
+			Polygon(self.vertices[0], self.vertices[2], self.vertices[6], self.vertices[4], name='Polygon4',color=self.color,
+					alpha=self.alpha, segment_object=self.segment_object, segments_color=self.segments_color),  # left
+			Polygon(self.vertices[1], self.vertices[3], self.vertices[7], self.vertices[5], name='Polygon5',color=self.color,
+					alpha=self.alpha, segment_object=self.segment_object, segments_color=self.segments_color),  # right
 		]
 
 	@property
@@ -181,10 +194,23 @@ class Tetrahedron(Shape3D):
 				if object in edge:
 					return [object]
 
+		if isinstance(object, (Line, Segment, Vector, Ray)):
+			points = []
+			non_point_ion = []
+			for edge in self.edge:
+				ions = edge.intersects(object)
+				for ion in ions:
+					if isinstance(ion, Point):
+						points.append(ion)
+					else:
+						non_point_ion.append(ion)
+
+			return points # TODO: сделать обработку исключительных случаев с non_point_ion
+
 		if self.inside(object) and check_inside:
 			return [object]
-		else:
-			return []
+
+		return []
 
 	def inside(self, object: Union[Primitive, Shape, Point, tuple, list]) -> bool:
 		if isinstance(object, (tuple, list)):
