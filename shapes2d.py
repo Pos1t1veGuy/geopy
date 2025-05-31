@@ -87,7 +87,6 @@ class Polygon(Shape2D):
 
 	def intersects(self, object: Union[Primitive, Shape, Point, tuple, list, np.ndarray],
 				   check_inside: bool = True) -> List[Point]:
-		from .scene import Scene2D
 		if object.dimension <= 2:
 			return self.intersects_2d(object, check_inside=check_inside)
 		else:

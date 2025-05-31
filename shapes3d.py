@@ -86,19 +86,16 @@ class Parallelepiped(Shape3D):
 		else:
 			raise IntersectionError(f'"inside" method takes Union[Primitive, Shape, Point, tuple, list], not {object}')
 
-		rays = {
-			Ray(point, point + [0, 1]): [],
-			Ray(point, point + [0, -1]): [],
-			Ray(point, point + [-1, 0]): [],
-			Ray(point, point + [1, 0]): [],
-		} # {up:0, down:0, right:0, left:0}
-		for segment in self.segments:
-			for ray in rays.keys():
-				if ray in segment:
-					rays[ray].append(segment.intersects(ray))
+		ray = Ray(point, point + [0, 1])
+		ions = []
 
-		return all([ len(positions) % 2 != 0 and len(positions) != 0 for positions in rays.values() ])
-		# if every ray from "rays" dict has intersection count that % 2 == 0 and != 0 then point inside
+		for edge in self.edges:
+			ion = edge.intersects(ray)
+			for i in ion:
+				ions.append(i)
+
+		return len(ions) % 2 != 0 and len(ions) != 0
+		# if every ray has intersection count that % 2 == 0 and != 0 then point inside
 
 	@property
 	def edges(self) -> List['Polygon']:
@@ -158,6 +155,9 @@ class Parallelepiped(Shape3D):
 	@property
 	def perimeter(self) -> float:
 		return sum([ segment.length for segment in self.segments ])
+
+	def __contains__(self, object):
+		return self.intersects(object)
 
 	def __len__(self):
 		return int(self.perimeter)
