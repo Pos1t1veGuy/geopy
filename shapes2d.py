@@ -87,14 +87,15 @@ class Polygon(Shape2D):
 
 	def intersects(self, object: Union[Primitive, Shape, Point, tuple, list, np.ndarray],
 				   check_inside: bool = True) -> List[Point]:
+		from .scene import Scene2D
 		if object.dimension <= 2:
 			return self.intersects_2d(object, check_inside=check_inside)
 		else:
 			space = self.normal_space.copy()
 			ions = space.intersects(object)
 
-			local_ions = [space.point_to_local(ion) for ion in ions]
 			pol2d = [pol for pol in space.get_local_polygons() if pol.name == self.name][0]
+			local_ions = [space.point_to_local(ion) for ion in ions]
 			return [ion for ion, lion in zip(ions,local_ions) if lion in pol2d]
 
 	def intersects_2d(self, object: Union[Primitive, Shape, Point, tuple, list], check_inside: bool = True) -> List[Point]:
