@@ -10,7 +10,6 @@ from geopy.core import *
 
 # Matplotlib interface
 
-# These names will be exported to the user
 __all__ = ['Scene', 'Scene2D', 'Scene3D']
 
 class Scene:
