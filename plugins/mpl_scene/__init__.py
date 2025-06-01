@@ -14,24 +14,8 @@ from geopy.core import *
 __all__ = ['Scene', 'Scene2D', 'Scene3D']
 
 class Scene:
-    def save(self, filepath: str):
-        plt.savefig(filepath)
-
-
-# сократить
-class Scene2D(Scene):
-    def __init__(self, *args):
-        self.fig, self.ax = plt.subplots()
-        self.lines = []
-        self.rays = []
-        self.points = []
-        self.objects = args
-
-        for object in args:
-            self.add(object)
-
     def add(self, object: Union['Shape', 'Primitive', 'Point']):
-        object = object.project_to(2)
+        object = object.project_to(self.dimension)
         if isinstance(object, Point):
             self.add_point(object)
         elif isinstance(object, Vector):
@@ -48,13 +32,25 @@ class Scene2D(Scene):
             self.add_circle(object)
         elif isinstance(object, Oval):
             self.add_oval(object)
-        elif isinstance(object, Composite):
-            self.add_composite(object)
-        elif isinstance(object, PrimitiveGroup):
-            for pr in object.primitives:
-                self.add(pr)
         else:
             raise SceneError(f'Unexpected type {type(object)}. Object must be Shape/Primitive/Point')
+
+    def save(self, filepath: str):
+        plt.savefig(filepath)
+
+
+# сократить
+class Scene2D(Scene):
+    def __init__(self, *args):
+        self.fig, self.ax = plt.subplots()
+        self.lines = []
+        self.rays = []
+        self.points = []
+        self.objects = args
+        self.dimension = 2
+
+        for object in args:
+            self.add(object)
 
     def add_composite(self, composite: 'Composite'):
         # for shape in object.shapes:
@@ -213,35 +209,16 @@ class Scene3D(Scene):
         self.points = []
         self.vectors = []
         self.objects = args
+        self.dimension = 3
 
         for object in args:
             self.add(object)
 
     def add(self, object: Union['Shape', 'Primitive', 'Point']):
-        if isinstance(object, Point):
-            self.add_point(object)
-        elif isinstance(object, Vector):
-            self.add_vector(object)
-        elif isinstance(object, Segment):
-            self.add_segment(object)
-        elif isinstance(object, Ray):
-            self.add_ray(object)
-        elif isinstance(object, Line):
-            self.add_line(object)
-        elif isinstance(object, Polygon):
-            self.add_polygon(object)
-        elif isinstance(object, Circle):
-            self.add_circle(object)
-        elif isinstance(object, Shape3D):
+        if isinstance(object, Shape3D):
             self.add_shape3d(object)
-        elif isinstance(object, Composite):
-            for shape in object.shapes:
-                self.add(shape)
-        elif isinstance(object, PrimitiveGroup):
-            for pr in object.primitives:
-                self.add(pr)
         else:
-            raise SceneError(f'Unexpected type {type(object)}. Object must be Shape/Primitive/Point')
+            return super().add(object)
 
     def add_point(self, point: 'Point'):
         self.ax.scatter(float(point.x), float(point.y), float(point.z), color=point.color, marker='o',
