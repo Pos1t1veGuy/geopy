@@ -87,13 +87,16 @@ class Polygon(Shape2D):
 
 	def intersects(self, object: Union[Primitive, Shape, Point, tuple, list, np.ndarray],
 				   check_inside: bool = True) -> List[Point]:
+		if isinstance(object, (tuple, list, np.ndarray)):
+			object = Point(*object)
+
 		if object.dimension <= 2:
 			return self.intersects_2d(object, check_inside=check_inside)
 		else:
 			space = self.normal_space.copy()
 			ions = space.intersects(object)
 
-			pol2d = [pol for pol in space.get_local_polygons() if pol.name == self.name][0]
+			pol2d = space.get_local_polygons(name=self.name)[0]
 			local_ions = [space.point_to_local(ion) for ion in ions]
 			return [ion for ion, lion in zip(ions,local_ions) if lion in pol2d]
 
@@ -277,7 +280,9 @@ class Polygon(Shape2D):
 			if dimension >= self.dimension:
 				return self
 			else:
-				return self.__class__([point.project_to(dimension) for point in self.points], name=self.name, segment_object = Segment, pos=self.pos)
+				return self.__class__([point.project_to(dimension) for point in self.points], name=self.name,
+									  segment_object=Segment, pos=self.pos, color=self.color, alpha=self.alpha,
+									  segments_color=self.segments_color)
 
 	def view(self):
 		root = Tk()
@@ -354,22 +359,15 @@ class Polygon(Shape2D):
 			  segments_color=self.segments_color, space_check=space_check)
 
 	@property
-	def projected_polygon(self) -> 'Polygon2D':
+	def projected_polygon(self) -> 'Polygon':
 		if self.dimension > 2:
-			return [pol for pol in self.normal_space.get_local_polygons() if pol.name == self.name][0]
+			return space.get_local_polygons(name=self.name)[0]
 		else:
 			return self
 
 	@property
 	def dimension(self) -> int:
 		return max([ vertice.dimension for vertice in self.vertices ])
-
-	@property
-	def random_point(self) -> Point:
-		point = Point.random(self.min_pos, self.max_pos)
-		while not point in self:
-			point = Point.random(self.min_pos, self.max_pos)
-		return point
 
 	@property
 	def center_of_mass(self) -> Point:
@@ -430,7 +428,10 @@ class Polygon(Shape2D):
 	@property
 	def box(self):
 		if isinstance(self, Rectangle):
-			return self if self.min_pos in self.vertices or self.max_pos in self.vertices else Rectangle(self.min_pos, self.max_pos)
+			if self.min_pos in self.vertices or self.max_pos in self.vertices:
+				return self
+			else:
+				return Rectangle(self.min_pos, self.max_pos)
 		else:
 			return Rectangle(self.min_pos, self.max_pos)
 	
@@ -476,7 +477,7 @@ class Polygon(Shape2D):
 		return f'{self.__class__.__name__}({self.vertices}, name="{self.name}", pos={self.pos})'
 
 class Rectangle(Polygon): # only 2D
-	def __init__(self, pos1: Point, pos2: Point, name: str = 'Box', pos: Point = None, segment_object = Segment,
+	def __init__(self, pos1: Point, pos2: Point, name: str = 'Rect', pos: Point = None, segment_object = Segment,
 				 color: str = 'cyan', segments_color: str = 'r', alpha: str = 0.5, space_check: bool = True):
 		if isinstance(pos1, (tuple, list, np.ndarray)):
 			pos1 = Point(pos1)
@@ -624,9 +625,14 @@ class Rhombus(Polygon):
 
 
 class Circle(Shape2D):
-	def __init__(self, center: 'Point', radius: int, name: str = 'Circle', color: str = 'purple', alpha: Union[int, float] = 1):
+	def __init__(self, center: 'Point', radius: int, vec1: Vector, vec2: Vector,
+				 name: str = 'Circle', color: str = 'purple', alpha: Union[int, float] = 1):
 		if isinstance(center, (tuple, list, np.ndarray)):
 			center = Point(*center)
+		if isinstance(vec1, (tuple, list, np.ndarray)):
+			vec1 = Vector[vec1]
+		if isinstance(vec2, (tuple, list, np.ndarray)):
+			vec2 = Vector[vec2]
 
 		if not isinstance(radius, (float, int)):
 			raise ConstructError(f'Incorrect radius for circle: it must be positive number, not {radius}, {type(radius)}')
@@ -635,11 +641,33 @@ class Circle(Shape2D):
 
 		self.radius = radius
 		self.center = center
+		self.space = Space(self.center, [vec1, vec2])
+		self.normal_vector = self.space.normal
+
 		self.name = name
 		self.color = color
 		self.alpha = alpha
 
-	def intersects(self, object: Union[Primitive, Shape, 'Point', tuple, list], check_inside: bool = True) -> List['Point']:
+	def intersects(self, object: Union[Primitive,Shape,'Point',tuple,list], check_inside: bool = True) -> List['Point']:
+		if isinstance(object, (tuple, list, np.ndarray)):
+			object = Point(*object)
+
+		if object.dimension <= 2:
+			return self.intersects_2d(object, check_inside=check_inside)
+		else:
+			space = self.space.copy()
+			ions = space.intersects(object)
+
+			local_ions = [space.point_to_local(ion) for ion in ions]
+			res = []
+			for ion, lion in zip(ions,local_ions):
+				if check_inside and Segment([0],lion).length <= self.radius:
+					res.append(ion)
+				elif not check_inside and abs(Segment([0],lion).length - self.radius) <= EPSILON:
+					res.append(ion)
+			return res
+
+	def intersects_2d(self, object: Union[Primitive,Shape,'Point',tuple,list], check_inside:bool=True) -> List['Point']:
 		if isinstance(object, (tuple, list, np.ndarray)):
 			object = Point(*object)
 
@@ -729,7 +757,7 @@ class Circle(Shape2D):
 				return []
 
 		else:
-			raise IntersectionError(f'"intersects" method takes Union[Primitive, Shape, Point, tuple, list], not {object}')
+			raise IntersectionError(f'"intersects_2d" method takes Union[Primitive, Shape2D, Point, tuple, list], not {object}')
 
 	def at_pos(self, position: List[[int, int]]) -> 'Circle':
 		if self.center != position:
@@ -799,6 +827,16 @@ class Circle(Shape2D):
 				+sqrt(self.radius**2 - (y - self.y)**2) + self.x,
 			]
 
+	def project_to(self, dimension: int) -> 'Circle':
+		if dimension <= 1:
+			raise ConstructError(f'{self.__class__.__name__} can be 2D+ object, not {dimension}D')
+		elif dimension >= 2:
+			if dimension >= self.dimension:
+				return self
+			else:
+				return self.__class__([point.project_to(dimension) for point in self.points],
+									  name=self.name, pos=self.pos, color=self.color, alpha=self.alpha)
+
 	@property
 	def random_point(self):
 		return self( round(r.uniform(self.x - self.radius, self.x + self.radius), 2) )
@@ -811,16 +849,17 @@ class Circle(Shape2D):
 		return self.radius * 2
 
 	@property
-	def space(self) -> 'Space':
-		rp = self.random_point
-		return Space(self.center, [ self.center + rp, self.center + [-rp[1], rp[0]] ])
-
-	@property
 	def x(self) -> float:
 		return self.center.x
 	@property
 	def y(self) -> float:
 		return self.center.y
+	@property
+	def z(self) -> float:
+		return self.center.z
+	@property
+	def y(self) -> float:
+		return self.center.w
 
 	@property
 	def area(self) -> float:

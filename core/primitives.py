@@ -1523,25 +1523,32 @@ class AffineSpace:
 		self.global_objects.append(obj)
 		return self.object_to_local(obj)
 
-	def get_local_objects(self) -> List[Primitive]:
-		return self.get_local_polygons() + self.get_local_points() + self.get_local_lines()
+	def get_local_objects(self, name: str = None) -> List[Primitive]:
+		return self.get_local_polygons(name=name) + self.get_local_points(name=name) + self.get_local_lines(name=name)
 
-	def get_local_points(self) -> List[Primitive]:
-		return [self.point_to_local(obj) for obj in self.global_objects if isinstance(obj, Point)]
+	def get_local_points(self, name: str = None) -> List[Primitive]:
+		points = []
+		for obj in self.global_objects:
+			if isinstance(obj, Point):
+				if name == None or name == obj.name:
+					points.append(self.point_to_local(obj))
+		return points
 
-	def get_local_polygons(self) -> List[Primitive]:
+	def get_local_polygons(self, name: str = None) -> List[Primitive]:
 		pols = []
 		for obj in self.global_objects:
 			if isinstance(obj, Shape2D):
-				pols.append(self.polygon_to_local(obj))
+				if name == None or name == obj.name:
+					pols.append(self.polygon_to_local(obj))
 		return pols
 
-	def get_local_lines(self, type = Line) -> List[Line]:
+	def get_local_lines(self, type = Line, name: str = None) -> List[Line]:
 		# 'type' may be Line/Segment/Ray/Vector
 		prs = []
 		for obj in self.global_objects:
 			if isinstance(obj, type):
-				prs.append(self.primitive_to_local(obj))
+				if name == None or name == obj.name:
+					prs.append(self.primitive_to_local(obj))
 		return prs
 
 	def polygon_to_local(self, pol: 'Polygon') -> 'Polygon':
@@ -1577,17 +1584,6 @@ class AffineSpace:
 			raise ConstructError(
 				f"Unsupported type: '{obj.__class__.__name__}', supports only Primitives or Shapes2D"
 			)
-
-	@property
-	def scene(self) -> 'Scene':
-		from .scene import Scene3D, Scene2D
-		if self.dimension in [1,2]:
-			return Scene2D(*self.local_objects)
-		else:
-			return Scene3D(*self.local_objects)
-
-	def show(self):
-		self.scene.show()
 
 	@property
 	def normal(self) -> Vector:
