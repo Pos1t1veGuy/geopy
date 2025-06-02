@@ -162,7 +162,7 @@ class Parallelepiped(Shape3D):
 	def __len__(self):
 		return int(self.perimeter)
 	def __str__(self):
-		return f'{self.name}({self.center_of_mass}, volume={self.volume}, area={self.area})'
+		return f'{self.name}({self.center_of_mass}, volume={round(self.volume, 8)}, area={round(float(self.area), 8)})'
 	def __repr__(self):
 		return f'{self.__class__.__name__}({self.pos1}, {self.pos2} name="{self.name}")'
 Box = Parallelepiped

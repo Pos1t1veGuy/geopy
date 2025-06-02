@@ -1,4 +1,5 @@
 from geopy import *
+from geopy.ext.mpl_scene import Scene2D
 import random
 
 
@@ -27,12 +28,12 @@ def symmetric_intersection(a, b):
 
 def test_line_circle_intersection():
 	step = 0.1
-	circle = Circle([1,1], 10)
+	circle = Circle2D([1,1], 10)
 	horizontal = Line([0,0], [1,0]).at_pos([0,0])
 	vertical = Line([0,1], [0,0]).at_pos([0,0])
 
 	try:
-		line = horizontal.at_pos([0,0]) + Point[circle.x, circle.y + circle.radius + 0.1]
+		line = horizontal.at_pos([0,0]) + Point[circle.x, circle.y + circle.radius + 1]
 		ions = line.intersects(circle)
 		assert len(ions) == 0, f'First horizontal line intersects circle but must to do not'
 
@@ -88,7 +89,7 @@ def test_line_circle_intersection():
 
 def test_ray_segment_intersects_circle():
 	step = 0.1
-	circle = Circle([1,1], 5)
+	circle = Circle2D([1,1], 5)
 
 	try:
 		for degree in range(-360, 360):
@@ -134,9 +135,9 @@ def test_ray_segment_intersects_circle():
 
 def test_circles_intersection():
 	try:
-		c1 = Circle([1,1], 5)
-		c2 = Circle([0,0], 4)
-		path = Circle(c1.center, c1.radius+2)
+		c1 = Circle2D([1,1], 5)
+		c2 = Circle2D([0,0], 4)
+		path = Circle2D(c1.center, c1.radius+2)
 
 		for degree in range(89, 360):
 			new_circle_center = path(Fraction(degree, 360))

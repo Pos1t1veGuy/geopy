@@ -38,7 +38,6 @@ class Scene:
         plt.savefig(filepath)
 
 
-# сократить
 class Scene2D(Scene):
     def __init__(self, *args):
         self.fig, self.ax = plt.subplots()
@@ -50,12 +49,6 @@ class Scene2D(Scene):
 
         for object in args:
             self.add(object)
-
-    def add_composite(self, composite: 'Composite'):
-        # for shape in object.shapes:
-        # 	self.add(shape)
-        pol = composite.polygons[0]
-        c = composite.circles[0]
 
     def add_circle(self, circle: 'Circle'):
         self.points.append(circle.center)
@@ -248,22 +241,23 @@ class Scene3D(Scene):
         self.points.append(line.pos2)
 
     def add_circle(self, circle: 'Circle'):
-        cx, cy, cz = circle.center_of_mass.x, circle.center_of_mass.y, circle.center_of_mass.z
         r = circle.radius
-
         theta = np.linspace(0, 2 * np.pi, 100)
-        x = r * np.cos(theta) + cx
-        y = r * np.sin(theta) + cy
-        z = np.full_like(x, cz)
 
-        self.ax.plot(x, y, z, color=circle.color, alpha=circle.alpha)
+        local_points = [Point(r * np.cos(t), r * np.sin(t)) for t in theta]
+        global_points = [circle.space.point_to_global(p) for p in local_points]
+
+        self.ax.plot(
+            [p.x for p in global_points],
+            [p.y for p in global_points],
+            [p.z for p in global_points],
+            color=circle.color, alpha=circle.alpha)
 
         self.points.append(circle.center)
-
-        self.points.append(circle.center - [circle.radius, 0])
-        self.points.append(circle.center + [circle.radius, 0])
-        self.points.append(circle.center - [0, circle.radius])
-        self.points.append(circle.center + [0, circle.radius])
+        self.points.append(circle.space.point_to_global(Point(-r, 0)))
+        self.points.append(circle.space.point_to_global(Point(r, 0)))
+        self.points.append(circle.space.point_to_global(Point(0, -r)))
+        self.points.append(circle.space.point_to_global(Point(0, r)))
 
     def add_shape3d(self, shape: 'Shape3D'):
         for polygon in shape.edges:
@@ -345,6 +339,7 @@ class Scene3D(Scene):
 
             for line in self.lines:
                 ions = scene_rect.intersects(line)
+                # self.draw_line(line)
                 self.ax.plot([ions[0].x, ions[1].x], [ions[0].y, ions[1].y], [ions[0].z, ions[1].z], color=line.color)
 
         # Scene draws lines and rays to the end by the min and max points that makes box.

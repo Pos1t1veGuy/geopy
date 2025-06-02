@@ -97,7 +97,7 @@ class Polygon(Shape2D):
 			ions = space.intersects(object)
 
 			pol2d = space.get_local_polygons(name=self.name)[0]
-			local_ions = [space.point_to_local(ion) for ion in ions]
+			local_ions = [space.to_local(ion) for ion in ions]
 			return [ion for ion, lion in zip(ions,local_ions) if lion in pol2d]
 
 	def intersects_2d(self, object: Union[Primitive, Shape, Point, tuple, list], check_inside: bool = True) -> List[Point]:
@@ -361,7 +361,7 @@ class Polygon(Shape2D):
 	@property
 	def projected_polygon(self) -> 'Polygon':
 		if self.dimension > 2:
-			return space.get_local_polygons(name=self.name)[0]
+			return self.normal_space.get_local_polygons(name=self.name)[0]
 		else:
 			return self
 
@@ -526,7 +526,7 @@ class Triangle(Polygon):
 
 	@property
 	def orthocenter(self) -> Point:
-		return self.segments[0].perpendicular.intersects(self.segments[1].perpendicular)[0]
+		return self.segments[0].get_perpendicular().intersects(self.segments[1].get_perpendicular())[0]
 
 	@property
 	def angle_type(self) -> str:
@@ -625,7 +625,7 @@ class Rhombus(Polygon):
 
 
 class Circle(Shape2D):
-	def __init__(self, center: 'Point', radius: int, vec1: Vector, vec2: Vector,
+	def __init__(self, center: 'Point', radius: Union[int, float], vec1: Vector, vec2: Vector,
 				 name: str = 'Circle', color: str = 'purple', alpha: Union[int, float] = 1):
 		if isinstance(center, (tuple, list, np.ndarray)):
 			center = Point(*center)
@@ -641,7 +641,7 @@ class Circle(Shape2D):
 
 		self.radius = radius
 		self.center = center
-		self.space = Space(self.center, [vec1, vec2])
+		self.space = Space(self.center, [vec1, vec2], name='123')
 		self.normal_vector = self.space.normal
 
 		self.name = name
@@ -658,13 +658,12 @@ class Circle(Shape2D):
 			space = self.space.copy()
 			ions = space.intersects(object)
 
-			local_ions = [space.point_to_local(ion) for ion in ions]
+			local_ions = [space.to_local(ion) for ion in ions]
 			res = []
-			for ion, lion in zip(ions,local_ions):
-				if check_inside and Segment([0],lion).length <= self.radius:
-					res.append(ion)
-				elif not check_inside and abs(Segment([0],lion).length - self.radius) <= EPSILON:
-					res.append(ion)
+			for lion in local_ions:
+				for ion in self.intersects_2d(lion):
+					res.append(space.to_global(ion))
+
 			return res
 
 	def intersects_2d(self, object: Union[Primitive,Shape,'Point',tuple,list], check_inside:bool=True) -> List['Point']:
@@ -858,7 +857,7 @@ class Circle(Shape2D):
 	def z(self) -> float:
 		return self.center.z
 	@property
-	def y(self) -> float:
+	def w(self) -> float:
 		return self.center.w
 
 	@property
@@ -872,11 +871,6 @@ class Circle(Shape2D):
 	def as_geometry(self) -> str:
 		return f'(x - {self.x})**2 + (y - {self.y})**2 = {self.radius}**2'
 
-	@staticmethod
-	def by_points(center: Point, pos2: Point) -> 'Circle':
-		radius = Segment(center, pos2).length
-		return Circle(center, radius, name=name, color=color)
-	
 	def __contains__(self, object):
 		return self.intersects(object, check_inside=True)
 
@@ -916,6 +910,10 @@ class Circle(Shape2D):
 		return f"{self.name}({self.center}, radius={self.radius})"
 	def __repr__(self):
 		return f"{self.__class__.__name__}({self.center}, {self.radius}, name='{self.name}')"
+
+def Circle2D(center: Point, radius: Union[int, float], name: str = 'Circle', color: str = 'purple',
+			 alpha: Union[int, float] = 1):
+		return Circle(center, radius, [1,0], [0,1], name=name, color=color, alpha=alpha)
 
 class Oval(Circle):
 	def __init__(self, center: Point, radius_x: int, radius_y: int, name: str = 'Oval', color: str = 'r', alpha: Union[int, float] = 1):

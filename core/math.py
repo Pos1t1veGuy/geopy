@@ -51,7 +51,8 @@ def gram_schmidt(vectors: List['Vector']) -> List['Vector']:
 	return [Vector[v] for v in ortho_vectors]
 
 # Returns rank of matrix
-def matrix_rank(matrix: List['Point']) -> int:
+def matrix_rank(matrix: List['Point'], atol: float = None) -> int:
+	atol = EPSILON if atol == None else atol
 	m = [row[:] for row in matrix]
 	num_rows = len(m)
 	num_cols = len(m[0])
@@ -60,7 +61,7 @@ def matrix_rank(matrix: List['Point']) -> int:
 	for col in range(num_cols):
 		pivot_row = None
 		for row in range(rank, num_rows):
-			if m[row][col] != 0:
+			if abs(m[row][col]) >= atol:
 				pivot_row = row
 				break
 		if pivot_row is None:

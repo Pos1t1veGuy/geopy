@@ -609,6 +609,25 @@ class Line(Primitive):
 					list(self.pos1.axes[:dimension]), list(self.pos2.axes[:dimension]), name=self.name
 				)
 
+	def get_perpendicular(self) -> Union['Space', 'Line']:
+		if self.dimension >= 3:
+			vector = self.vector
+			dir_vector_np = [ float(i) for i in vector.pos2.axes ]
+			id_matrix = np.eye(self.dimension)
+
+			ortho_vectors = gram_schmidt(
+				[vector] + [
+					Vector[id_matrix[i]] for i in range(self.dimension) if not np.allclose(id_matrix[i], dir_vector_np)
+				]
+			)[1:]  # Exclude the direction vector itself (self.vector)
+
+			return Space(self.center, ortho_vectors, name=perpendicular_name.format(self.name))
+		else:
+			segment = Point[0,0].height_to(self.at_pos([1,0]))
+			# Moves the Line in ".at_pos([1,0])" because Line with intersection in [0,0] will makes Segment[(0,0),(0,0)]
+			segment.name = perpendicular_name.format(self.name)
+			return segment.to_line
+
 	# Convertor
 	@property
 	def to_segment(self):
@@ -653,26 +672,6 @@ class Line(Primitive):
 	def true_dimension(self) -> int:
 		pos1, pos2 = eq_len_axeslists(self.pos1.axes, self.pos2.axes)
 		return len([ (i, j) for i, j in zip(pos1, pos2) if i != j ])
-
-	@property
-	def perpendicular(self) -> Union['Space', 'Line']:
-		if self.dimension >= 3:
-			vector = self.vector
-			dir_vector_np = [ float(i) for i in vector.pos2.axes ]
-			id_matrix = np.eye(self.dimension)
-
-			ortho_vectors = gram_schmidt(
-				[vector] + [
-					Vector[id_matrix[i]] for i in range(self.dimension) if not np.allclose(id_matrix[i], dir_vector_np)
-				]
-			)[1:]  # Exclude the direction vector itself (self.vector)
-
-			return Space(self.center, ortho_vectors, name=perpendicular_name.format(self.name))
-		else:
-			segment = Point[0,0].height_to(self.at_pos([1,0]))
-			# Moves the Line in ".at_pos([1,0])" because Line with intersection in [0,0] will makes Segment[(0,0),(0,0)]
-			segment.name = perpendicular_name.format(self.name)
-			return segment.to_line
 
 	@property
 	def direction(self) -> Union[str, 'Vector']:
@@ -724,8 +723,7 @@ class Line(Primitive):
 
 	@property
 	def center(self) -> Point:
-		return Point([to_fraction(self.pos1[i] + self.pos2[i], 2) for i in range(self.dimension)],
-					 name=center_name.format(self.name))
+		return Point((self.pos1 + self.pos2) / 2, name=center_name.format(self.name))
 
 	@staticmethod
 	def by_func(func: callable, **kwargs) -> 'Line':
@@ -1418,11 +1416,18 @@ class AffineSpace:
 			return [object] if matrix_rank(mat1) == matrix_rank(mat2) else []
 
 		elif isinstance(object, (Line, Ray, Segment, Vector)):
-			if self.normal.is_perpendicular(object):
+			is_perp = self.normal.is_perpendicular(object)
+			pos1_in_self = object.pos1 in self
+			if is_perp and not pos1_in_self: # parallel to the space
 				return []
+			elif is_perp and pos1_in_self: # lie on the space
+				return [object.copy()]
 			else:
 				# intersection of Line and Line`s projection to space
 				new_object = self.primitive_projection(object)
+
+				if new_object == object:
+					return [object.copy()]
 				return [
 					Point(point.axes, name=intersection_result_name.format(self.name,object.name))
 					for point in object.intersects(new_object) if point in self and point in object
@@ -1437,6 +1442,30 @@ class AffineSpace:
 		else:
 			raise IntersectionError(f"Invalid argument type for 'object'. Expected types are Union[Primitive, Point, list, tuple], but received {type(object)}.")
 
+	# converts default primitive or shape to primitive or shape in local coordinate system
+	def to_local(self, object: Union[Primitive, 'Polygon']):
+		match object:
+			case Point():
+				return self.point_to_local(object)
+			case Line():
+				return self.primitive_to_local(object)
+			case Polygon():
+				return self.polygon_to_local(object)
+			case _:
+				raise ConstructError(f'Can not convert to local object of type {type(object)}, expected Primitive/Polygon')
+
+	# converts local primitive or shape to primitive or shape in global coordinate system
+	def to_global(self, object: Union[Primitive, 'Polygon']):
+		match object:
+			case Point():
+				return self.point_to_global(object)
+			case Line():
+				return self.primitive_to_global(object)
+			case Polygon():
+				return self.polygon_to_global(object)
+			case _:
+				raise ConstructError(f'Can not convert to global object of type {type(object)}, expected Primitive/Polygon')
+
 	# converts default point to point in local coordinate system
 	def point_to_local(self, point: Union['Point', list, tuple]) -> 'Point':
 		if isinstance(point, (list, tuple, np.ndarray)):
@@ -1444,14 +1473,15 @@ class AffineSpace:
 
 		lists = eq_len_axeslists(point.axes, self.origin.axes, *[ vec.to_zero.pos2.axes for vec in self.vectors ])
 		obj, origin, vectors = lists[0], lists[1], lists[2:]
-		return Point(*np.dot(vectors, (point - origin).axes), name=affine_space_local_object_name.format(self.name), color=point.color, alpha=point.alpha)
+		return Point(*np.dot(vectors, (point - origin).axes), name=affine_space_local_object_name.format(self.name),
+					 color=point.color, alpha=point.alpha)
 
 	# converts local point to point in global coordinate system
 	def point_to_global(self, point: Union['Point', list, tuple]) -> 'Point':
 		if isinstance(point, (list, tuple, np.ndarray)):
 			point = Point(*point)
 
-		basis_matrix = np.array([vec.to_zero.pos2.axes.as_list(self.true_dimension) for vec in self.vectors]).T
+		basis_matrix = np.array([vec.to_zero.pos2.axes.as_list(self.dimension) for vec in self.vectors]).T
 		eq = [0] * (point.dimension - len(basis_matrix[0]))
 
 		matrix = [[*axis, *eq] for axis in basis_matrix]
@@ -1584,6 +1614,10 @@ class AffineSpace:
 			raise ConstructError(
 				f"Unsupported type: '{obj.__class__.__name__}', supports only Primitives or Shapes2D"
 			)
+
+	@property
+	def zero_vectors(self) -> List[Vector]:
+		return [v.to_zero for v in self.vectors]
 
 	@property
 	def normal(self) -> Vector:
