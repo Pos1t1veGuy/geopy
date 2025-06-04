@@ -90,15 +90,17 @@ class Polygon(Shape2D):
 		if isinstance(object, (tuple, list, np.ndarray)):
 			object = Point(*object)
 
-		if object.dimension <= 2:
-			return self.intersects_2d(object, check_inside=check_inside)
-		else:
-			space = self.normal_space.copy()
-			ions = space.intersects(object)
+		if isinstance(object, Line):
+			if object.pos1 in self and object.pos2 in self:# line lies on space
+				return self.intersects_2d(object, check_inside=check_inside)
 
-			pol2d = space.get_local_polygons(name=self.name)[0]
-			local_ions = [space.to_local(ion) for ion in ions]
-			return [ion for ion, lion in zip(ions,local_ions) if lion in pol2d]
+		space = self.get_normal_space()
+		ions = space.intersects(object)
+
+		pol2d = space.get_local_polygons(name=self.name)[0]
+		local_ions = [space.to_local(ion) for ion in ions]
+
+		return [ion for ion, lion in zip(ions,local_ions) if pol2d.intersects_2d(lion)]
 
 	def intersects_2d(self, object: Union[Primitive, Shape, Point, tuple, list], check_inside: bool = True) -> List[Point]:
 		if isinstance(object, (tuple, list, np.ndarray)):
@@ -284,18 +286,6 @@ class Polygon(Shape2D):
 									  segment_object=Segment, pos=self.pos, color=self.color, alpha=self.alpha,
 									  segments_color=self.segments_color)
 
-	def view(self):
-		root = Tk()
-		root.title(f"{self.name} view")
-		root.geometry(f"{self.width*2}x{self.height*2}")
-
-		canvas = Canvas(root, width=self.width*2, height=self.height*2, bg='gray')
-		canvas.pack()
-
-		canvas.create_polygon(self.at_pos(Point(50,50)).as_tk_polygon, outline='white', fill='red')
-
-		root.mainloop()
-
 	def at_pos(self, point: Union[Point, list, tuple, np.ndarray]) -> 'Polygon':
 		if isinstance(point, (list, tuple, np.ndarray)):
 			point = Point(*point)
@@ -337,21 +327,6 @@ class Polygon(Shape2D):
 		sp = Space(origin, perps, name=space_of_object_name.format(self.name)).at_pos(self.center_of_mass)
 		sp.add_object(self.copy(space_check=False))
 		return sp
-
-	def plot(self):
-		x = [vertice.x for vertice in self.vertices]
-		y = [vertice.y for vertice in self.vertices]
-
-		x.append(self.vertices[0].x)
-		y.append(self.vertices[0].y)
-
-		plt.plot(x, y, 'bo-')
-
-		for i in range(len(self.vertices)):
-			segment = Segment(self.vertices[i], self.vertices[(i + 1) % len(self.vertices)])
-			plt.plot([segment.pos1.x, segment.pos2.x], [segment.pos1.y, segment.pos2.y], 'r-')
-
-		plt.show()
 
 	def copy(self, space_check: bool = True) -> 'Polygon':
 		return self.__class__(*self.vertices,
@@ -641,7 +616,7 @@ class Circle(Shape2D):
 
 		self.radius = radius
 		self.center = center
-		self.space = Space(self.center, [vec1, vec2], name='123')
+		self.space = Space(self.center, [vec1, vec2])
 		self.normal_vector = self.space.normal
 
 		self.name = name
@@ -766,48 +741,10 @@ class Circle(Shape2D):
 	def to_pos(self, position: List[[int, int]]):
 		if isinstance(position, (tuple, list, np.ndarray)):
 			position = Point(*object)
+		self.center = position
 
-		if self.center != position:
-			self.center = position
-
-	def distane_to(object: Union[Primitive, Shape, Point, tuple, list, np.ndarray]) -> Segment:
-		if isinstance(object, (tuple, list, np.ndarray)):
-			object = Point(*object)
-
-		if isinstance(object, Point):
-			return Segment(self.center, object)
-		elif isinstance(object, Line):
-			return self.center.height_to(object)
-		elif isinstance(object, Ray):
-			res = self.center.height_to(object)
-			return res if res in object else []
-		elif isinstance(object, (Segment, Vector, Circle)):
-			return Segment(self.center, object.center)
-		elif isinstance(object, Polygon2D):
-			return Segment(self.center, object.center_of_mass)
-
-		return []
-
-	def scale(factor: float) -> 'Circle':
+	def scale(self, factor: float) -> 'Circle':
 		return self.__class__(self.pos, self.radius*factor, name=self.name)
-
-	def view(self):
-		root = Tk()
-		root.title(f"{self.name} view")
-		root.geometry(f"{self.radius*2+20}x{self.radius*2+20}")
-
-		canvas = Canvas(root, width=self.radius_x*2+20, height=self.radius_y*2+20, bg='gray')
-		canvas.pack()
-
-		canvas.create_oval(10, 10, self.radius_x*2, self.radius_y*2, outline='white', fill='red')
-
-		root.mainloop()
-
-	def plot(self):
-		fig, ax = plt.subplots()
-		ax.add_patch(Ellipse(xy=(self.center.x, self.center.y), width=self.diameter, height=self.diameter, edgecolor='r', fc='None'))
-		ax.axis('equal')
-		plt.show()
 
 	def y_from_x(self, x: float) -> float:
 		if self.radius**2 - (x - self.x)**2 == 0:
@@ -826,19 +763,30 @@ class Circle(Shape2D):
 				+sqrt(self.radius**2 - (y - self.y)**2) + self.x,
 			]
 
-	def project_to(self, dimension: int) -> 'Circle':
+	def project_to(self, dimension: int) -> Union['Circle', Line]:
 		if dimension <= 1:
 			raise ConstructError(f'{self.__class__.__name__} can be 2D+ object, not {dimension}D')
-		elif dimension >= 2:
-			if dimension >= self.dimension:
-				return self
-			else:
-				return self.__class__([point.project_to(dimension) for point in self.points],
-									  name=self.name, pos=self.pos, color=self.color, alpha=self.alpha)
+		elif dimension >= self.dimension:
+			return self
+		else:
+			result_vectors_i = [
+				i for i, vec in enumerate(self.space.zero_vectors) if vec.pos2[:dimension] != [0] * dimension
+			]
+
+			match len(result_vectors_i):
+				case 2: # TODO: добавить превращение круга в овал при двумерной проекции
+					return self.__class__(self.center.project_to(dimension), self.radius,
+										  *[self.space.zero_vectors[i] for i in result_vectors_i],
+										  name=self.name, color=self.color, alpha=self.alpha)
+				case 1:
+					vec = self.space.vectors[result_vectors_i[0]].at_pos(self.center)
+					return Segment(vec.pos2, (vec*-1).pos2, name=self.name, color=self.color, alpha=self.alpha)
+				case 0:
+					return self.center
 
 	@property
 	def random_point(self):
-		return self( round(r.uniform(self.x - self.radius, self.x + self.radius), 2) )
+		return self(r.random())
 
 	@property
 	def center_of_mass(self) -> 'Point':
@@ -866,6 +814,16 @@ class Circle(Shape2D):
 	@property
 	def perimeter(self) -> float:
 		return 2 * pi * self.radius
+
+	@property
+	def dimension(self) -> int:
+		return self.space.dimension
+	@property
+	def projection(self) -> 'Circle':
+		if self.dimension > 2:
+			return Circle2D(self.center.project_to(2), self.radius, name=self.name, color=self.color, alpha=self.alpha)
+		else:
+			return self
 
 	@property
 	def as_geometry(self) -> str:
@@ -899,12 +857,12 @@ class Circle(Shape2D):
 			point = Point(*point)
 		return self.__class__(self.center ** point, self.radius, name=self.name)
 
-	# 'num' is a number from 0 to 1, 0% -> 100%.
-	# Returns point at a Circle that makes with second right point sector of a circle that corresponds to the formula sector/circle = num
+	# 'num' is a number from 0 to 1
+	# Returns point at a Circle that makes with second point sector of a circle like angle (0 -> 0 deg; 1 -> 360 deg)
 	def __call__(self, num: Union[float, int]) -> Point:
-		right_point = self.center + Point[self.radius, 0]
-		ray = Ray.by_angle(num * 360, pos1=self.center)
-		return self.intersects(ray, check_inside=False)[0]
+		local_ray = Ray.by_angle(num * 360, pos1=self.center)
+		global_ray = self.space.to_global(local_ray)
+		return self.projection.intersects(global_ray, check_inside=False)[0]
 	
 	def __str__(self):
 		return f"{self.name}({self.center}, radius={self.radius})"
@@ -915,25 +873,59 @@ def Circle2D(center: Point, radius: Union[int, float], name: str = 'Circle', col
 			 alpha: Union[int, float] = 1):
 		return Circle(center, radius, [1,0], [0,1], name=name, color=color, alpha=alpha)
 
-class Oval(Circle):
-	def __init__(self, center: Point, radius_x: int, radius_y: int, name: str = 'Oval', color: str = 'r', alpha: Union[int, float] = 1):
+class Ellipse:
+	def __init__(self, center: Point, radius_x: float, radius_y: float, vec1: Vector, vec2: Vector,
+				 name: str = 'Ellipse', color: str = 'r', alpha: Union[int, float] = 1):
 
 		if isinstance(center, (tuple, list, np.ndarray)):
 			center = Point(*center)
+		if isinstance(vec1, (tuple, list, np.ndarray)):
+			vec1 = Vector[vec1]
+		if isinstance(vec2, (tuple, list, np.ndarray)):
+			vec2 = Vector[vec2]
+
+		if not isinstance(radius_x, (float, int)):
+			raise ConstructError(f'Incorrect radius for ellipse: it must be positive number, not {radius_x}, {type(radius_x)}')
+		if not isinstance(radius_y, (float, int)):
+			raise ConstructError(f'Incorrect radius for ellipse: it must be positive number, not {radius_y}, {type(radius_y)}')
+		if radius_x <= 0:
+			raise ConstructError(f'Incorrect radius for circle: it must be positive number, not {radius_x}, {type(radius_x)}')
+		if radius_y <= 0:
+			raise ConstructError(f'Incorrect radius for circle: it must be positive number, not {radius_y}, {type(radius_y)}')
 
 		self.center = center
-		self.center_of_mass = center
 
 		self.radius_x = radius_x
 		self.radius_y = radius_y
 		self.diameter_x = radius_x*2
 		self.diameter_y = radius_y*2
+		self.space = Space(self.center, [vec1, vec2])
+		self.normal_vector = self.space.normal
 
 		self.name = name
 		self.color = color
 		self.alpha = alpha
 
-	def intersects(self, object):
+	def intersects(self, object: Union[Primitive, Shape, 'Point', tuple, list], check_inside: bool = True) -> List['Point']:
+		if isinstance(object, (tuple, list, np.ndarray)):
+			object = Point(*object)
+
+		if isinstance(object, Line):
+			if object.pos1 in self and object.pos2 in self: # line lies on space
+				return self.intersects_2d(object, check_inside=check_inside)
+
+		space = self.space.copy()
+		ions = space.intersects(object)
+
+		local_ions = [space.to_local(ion) for ion in ions]
+		res = []
+		for lion in local_ions:
+			for ion in self.intersects_2d(lion):
+				res.append(space.to_global(ion))
+
+		return res
+
+	def intersects_2d(self, object: Union[Primitive, Shape, 'Point', tuple, list], check_inside: bool = True) -> List['Point']:
 		if isinstance(object, (tuple, list, np.ndarray)):
 			object = Point(*object)
 
@@ -950,21 +942,21 @@ class Oval(Circle):
 			x2, y2 = object.pos2.x - self.center.x, object.pos2.y - self.center.y
 
 			dx, dy = x2 - x1, y2 - y1
-			A = to_fraction(dx**2, self.radius_x**2) + to_fraction(dy**2, self.radius_y**2)
-			B = to_fraction(2 * x1 * dx, self.radius_x**2) + to_fraction(2 * y1 * dy, self.radius_y**2)
-			C = to_fraction(x1**2, self.radius_x**2) + to_fraction(y1**2, self.radius_y**2) - 1
+			eq = QuadraticEq(
+				a=to_fraction(dx**2, self.radius_x**2) + to_fraction(dy**2, self.radius_y**2),
+				b=to_fraction(2 * x1 * dx, self.radius_x**2) + to_fraction(2 * y1 * dy, self.radius_y**2),
+				c=to_fraction(x1**2, self.radius_x**2) + to_fraction(y1**2, self.radius_y**2) - 1,
+			)
 
-			D = B**2 - 4 * A * C
-			if D < 0:
+			if eq.D < 0:
 				return []
-			elif D == 0:
+			elif eq.D == 0:
 				if Point(x1 + t * dx + self.center.x, y1 + t * dy + self.center.y) in object:
 					return [Point(x1 + t * dx + self.center.x, y1 + t * dy + self.center.y)]
 				else:
 					return []
 			else:
-				t1 = to_fraction(-B + sqrt(D), 2 * A)
-				t2 = to_fraction(-B - sqrt(D), 2 * A)
+				t1, t2 = eq.solve()
 				return [ pos for pos in [
 					Point(x1 + t1 * dx + self.center.x, y1 + t1 * dy + self.center.y),
 					Point(x1 + t2 * dx + self.center.x, y1 + t2 * dy + self.center.y)
@@ -978,41 +970,100 @@ class Oval(Circle):
 						res.append(point)
 			return res
 
-		elif isinstance(object, Oval):
+		elif isinstance(object, Ellipse):
 			...
 		else:
 			return []
 
-	def view(self):
-		root = Tk()
-		root.title(f"{self.name} view")
-		root.geometry(f"{self.radius_x*2+20}x{self.radius_y*2+20}")
+	def project_to(self, dimension: int) -> Union['Circle', Line]:
+		if dimension <= 1:
+			raise ConstructError(f'{self.__class__.__name__} can be 2D+ object, not {dimension}D')
+		elif dimension >= self.dimension:
+			return self
+		else:
+			result_vectors_i = [
+				i for i, vec in enumerate(self.space.zero_vectors) if vec.pos2[:dimension] != [0] * dimension
+			]
 
-		canvas = Canvas(root, width=self.radius_x*2+20, height=self.radius_y*2+20, bg='gray')
-		canvas.pack()
+			match len(result_vectors_i):
+				case 2: # TODO: добавить превращение круга в овал при двумерной проекции
+					return self.__class__(self.center.project_to(dimension), self.radius,
+										  *[self.space.zero_vectors[i] for i in result_vectors_i],
+										  name=self.name, color=self.color, alpha=self.alpha)
+				case 1:
+					vec = self.space.vectors[result_vectors_i[0]].at_pos(self.center)
+					return Segment(vec.pos2, (vec*-1).pos2, name=self.name, color=self.color, alpha=self.alpha)
+				case 0:
+					return self.center
 
-		canvas.create_oval(10, 10, self.radius_x*2, self.radius_y*2, outline='white', fill='red')
+	def scale(self, factor: float) -> 'Ellipse':
+		return self.__class__(self.pos, self.radius_x*factor, self.radius_x*factor, name=self.name)
 
-		root.mainloop()
+	def at_pos(self, position: List[[int, int]]) -> 'Ellipse':
+		if self.center != position:
+			return self.__class__(position, self.radius_x, self.radius_y, name=self.name)
+		return self.copy()
 
-	def plot(self):
-		fig, ax = plt.subplots()
-		ax.add_patch(MPLEllipse(xy=(self.center.x, self.center.y), width=self.diameter_x, height=self.diameter_y, edgecolor='r', fc='None'))
-		ax.axis('equal')
-		plt.show()
+	def to_pos(self, position: List[[int, int]]):
+		if isinstance(position, (tuple, list, np.ndarray)):
+			position = Point(*object)
+		self.center = position
 
 	@property
 	def area(self):
 		return pi * self.radius_x * self.radius_y
+	@property
+	def perimeter(self) -> float:
+		# Ramanujan
+		a, b = self.radius_x, self.radius_y
+		return pi * (3 * (a + b) - sqrt((3 * a + b) * (a + 3 * b)))
 
 	@property
 	def as_geometry(self):
 		return f'({self.x} - x)**2/{self.radius_x}**2 + ({self.y} - y)**2/{self.radius_y}**2 = 1'
+
+	@property
+	def random_point(self):
+		return self(r.random())
+
+	@property
+	def center_of_mass(self) -> 'Point':
+		return self.center
+
+	@property
+	def x(self) -> float:
+		return self.center.x
+	@property
+	def y(self) -> float:
+		return self.center.y
+	@property
+	def z(self) -> float:
+		return self.center.z
+	@property
+	def w(self) -> float:
+		return self.center.w
+
+	@property
+	def dimension(self) -> int:
+		return self.space.dimension
+	@property
+	def projection(self) -> 'Circle':
+		if self.dimension > 2:
+			return Ellipse2D(self.center.project_to(2), self.radius_x, self.radius_y, name=self.name, color=self.color, alpha=self.alpha)
+		else:
+			return self
 	
 	def __contains__(self, object):
 		return self.intersects(object)
 
+	# 'num' is a number from 0 to 1
+	# Returns point at a Circle that makes with second point sector of a circle like angle (0 -> 0 deg; 1 -> 360 deg)
+	def __call__(self, num: Union[float, int]) -> Point:
+		local_ray = Ray.by_angle(num * 360, pos1=self.center)
+		global_ray = self.space.to_global(local_ray)
+		return self.projection.intersects(global_ray, check_inside=False)[0]
+
 	def __str__(self):
 		return f"{self.name}([{self.center}], radius_x={self.radius_x}, radius_y={self.radius_y})"
 	def __repr__(self):
-		return f"Oval({self.center}, {self.radius_x}, {self.radius_y}, name={self.name})"
+		return f"{self.__class__.__name__}({self.center}, {self.radius_x}, {self.radius_y}, name={self.name})"
