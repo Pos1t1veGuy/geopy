@@ -924,7 +924,7 @@ class Ellipse:
 				res.append(space.to_global(ion))
 
 		return res
-=======
+
 		if object.dimension <= 2:
 			return self.intersects_2d(object, check_inside=check_inside)
 		else:
@@ -938,7 +938,6 @@ class Ellipse:
 					res.append(space.to_global(ion))
 
 			return res
->>>>>>> geopy/master
 
 	def intersects_2d(self, object: Union[Primitive, Shape, 'Point', tuple, list], check_inside: bool = True) -> List['Point']:
 		if isinstance(object, (tuple, list, np.ndarray)):
