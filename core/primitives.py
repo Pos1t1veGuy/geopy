@@ -83,7 +83,8 @@ class Point(Primitive, metaclass=PointMeta):
 			return self - (normal * dot).pos2
 
 	def project_to(self, dimension: int) -> 'Point':
-		return self.__class__(self.axes[:dimension], name=projection_name.format(self.name))
+		return self.__class__(self.axes[:dimension], name=projection_name.format(self.name), color=self.color,
+							  alpha=self.alpha)
 
 	@staticmethod
 	def random(pos1: Union['Point', tuple, list], pos2: Union['Point', tuple, list], uniform: bool = True) -> 'Point':
@@ -127,9 +128,7 @@ class Point(Primitive, metaclass=PointMeta):
 			raise IndexError(f"Attribute '{i}' not found in axes or object attributes.")
 
 	def __eq__(self, obj):
-		if obj == 0:
-			return all([ axis == 0 for axis in self.axes ])
-		elif isinstance(obj, Point):
+		if isinstance(obj, Point):
 			max_dimension = max( len(self.axes), len(obj.axes) )
 			return self.rounded_axes.as_list(length=max_dimension) == obj.rounded_axes.as_list(length=max_dimension)
 		else:
@@ -137,14 +136,18 @@ class Point(Primitive, metaclass=PointMeta):
 
 	def __add__(self, object: Union[int, float, Fraction]) -> 'Point':
 		if isinstance(object, (int, float, Fraction)):
-			return self.__class__([axis + object for axis in self.axes], name=self.name)
+			return self.__class__([axis + object for axis in self.axes], name=self.name, color=self.color, alpha=self.alpha)
 		elif isinstance(object, Point):
-			return self.__class__([self.axes[i] + object.axes[i] for i in range(max(self.dimension, object.dimension))], name=self.name)
+			return self.__class__([self.axes[i] + object.axes[i] for i in range(max(self.dimension, object.dimension))],
+								  name=self.name, color=self.color, alpha=self.alpha)
 		elif isinstance(object, (tuple, list, np.ndarray)):
 			object = AxesList(object)
-			return self.__class__([self.axes[i] + object[i] for i in range(max(self.dimension, len(object)))], name=self.name)
+			return self.__class__([self.axes[i] + object[i] for i in range(max(self.dimension, len(object)))],
+								  name=self.name, color=self.color, alpha=self.alpha)
 		elif isinstance(object, Vector):
-			return self.__class__([self.axes[i] + (object.pos2.axes[i] - object.pos1.axes[i]) for i in range(max(self.dimension, object.dimension))])
+			dim = max(self.dimension, object.dimension)
+			return self.__class__([self.axes[i] + (object.pos2.axes[i] - object.pos1.axes[i]) for i in range(dim)],
+								  name=self.name, color=self.color, alpha=self.alpha)
 		else:
 			raise ConstructError(f"Unsupported operand type(s) for +: '{self.__class__.__name__}' and '{type(object).__name__}'")
 
@@ -153,37 +156,48 @@ class Point(Primitive, metaclass=PointMeta):
 
 	def __sub__(self, object: Union[int, float, Fraction]) -> 'Point':
 		if isinstance(object, (int, float, Fraction)):
-			return self.__class__([axis - object for axis in self.axes], name=self.name)
+			return self.__class__([axis - object for axis in self.axes], name=self.name, color=self.color, alpha=self.alpha)
 		elif isinstance(object, Point):
-			return self.__class__([self.axes[i] - object.axes[i] for i in range(max(self.dimension, object.dimension))], name=self.name)
+			return self.__class__([self.axes[i] - object.axes[i] for i in range(max(self.dimension, object.dimension))],
+								  name=self.name, color=self.color, alpha=self.alpha)
 		elif isinstance(object, (tuple, list, np.ndarray)):
 			object = AxesList(object)
-			return self.__class__([self.axes[i] - object[i] for i in range(max(self.dimension, len(object)))], name=self.name)
+			return self.__class__([self.axes[i] - object[i] for i in range(max(self.dimension, len(object)))],
+								  name=self.name, color=self.color, alpha=self.alpha)
 		elif isinstance(object, Vector):
-			return self.__class__([self.axes[i] - (object.pos2.axes[i] - object.pos1.axes[i]) for i in range(max(self.dimension, object.dimension))], name=self.name)
+			dim = max(self.dimension, object.dimension)
+			return self.__class__([self.axes[i] - (object.pos2.axes[i] - object.pos1.axes[i]) for i in range(dim)],
+								  name=self.name, color=self.color, alpha=self.alpha)
 		else:
 			raise ConstructError(f"Unsupported operand type(s) for -: '{self.__class__.__name__}' and '{type(object).__name__}'")
 
 	def __mul__(self, object: Union[int, float, Fraction]) -> 'Point':
 		if isinstance(object, (int, float, Fraction)):
-			return self.__class__([axis * object for axis in self.axes], name=self.name)
+			return self.__class__([axis * object for axis in self.axes], name=self.name, color=self.color, alpha=self.alpha)
 		elif isinstance(object, Point):
-			return self.__class__([self.axes[i] * object.axes[i] for i in range(max(self.dimension, object.dimension))], name=self.name)
+			return self.__class__([self.axes[i] * object.axes[i] for i in range(max(self.dimension, object.dimension))],
+								  name=self.name, color=self.color, alpha=self.alpha)
 		elif isinstance(object, (tuple, list, np.ndarray)):
 			object = AxesList(object)
-			return self.__class__([self.axes[i] * object[i] for i in range(max(self.dimension, len(object)))], name=self.name)
+			return self.__class__([self.axes[i] * object[i] for i in range(max(self.dimension, len(object)))],
+								  name=self.name, color=self.color, alpha=self.alpha)
 		else:
 			raise ConstructError(f"Unsupported operand type(s) for *: '{self.__class__.__name__}' and '{type(object).__name__}'")
 
 	def __truediv__(self, object: Union[int, float, Fraction]) -> 'Point':
 		try:
 			if isinstance(object, (int, float, Fraction)):
-				return self.__class__(*[to_fraction(axis, object) for axis in self.axes], name=self.name)
+				return self.__class__(*[to_fraction(axis, object) for axis in self.axes], name=self.name,
+									  color=self.color, alpha=self.alpha)
 			elif isinstance(object, Point):
-				return self.__class__(*[to_fraction(self.axes[i], object.axes[i]) for i in range(max(self.dimension, object.dimension))], name=self.name)
+				dim = max(self.dimension, object.dimension)
+				return self.__class__(*[to_fraction(self.axes[i], object.axes[i]) for i in range(dim)],
+									  name=self.name, color=self.color, alpha=self.alpha)
 			elif isinstance(object, (tuple, list, np.ndarray)):
 				object = AxesList(object)
-				return self.__class__(*[to_fraction(self.axes[i], object[i]) for i in range(max(self.dimension, len(object)))], name=self.name)
+				dim = max(self.dimension, len(object))
+				return self.__class__(*[to_fraction(self.axes[i], object[i]) for i in range(dim)],
+									  name=self.name, color=self.color, alpha=self.alpha)
 			else:
 				raise ConstructError(f"Unsupported operand type(s) for /: '{self.__class__.__name__}' and '{type(object).__name__}'")
 		except ZeroDivisionError:
@@ -192,12 +206,17 @@ class Point(Primitive, metaclass=PointMeta):
 	def __floordiv__(self, object: Union[int, float, Fraction]) -> 'Point':
 		try:
 			if isinstance(object, (int, float, Fraction)):
-				return self.__class__(*[to_fraction(axis, object) for axis in self.axes], name=self.name)
+				return self.__class__(*[to_fraction(axis, object) for axis in self.axes], name=self.name,
+									  color=self.color, alpha=self.alpha)
 			elif isinstance(object, Point):
-				return self.__class__(*[to_fraction(self.axes[i], object.axes[i]) for i in range(max(self.dimension, object.dimension))], name=self.name)
+				dim = max(self.dimension, object.dimension)
+				return self.__class__(*[to_fraction(self.axes[i], object.axes[i]) for i in range(dim)], name=self.name,
+									  color=self.color, alpha=self.alpha)
 			elif isinstance(object, (tuple, list, np.ndarray)):
 				object = AxesList(object)
-				return self.__class__(*[to_fraction(self.axes[i], object[i]) for i in range(max(self.dimension, len(object)))], name=self.name)
+				dim = max(self.dimension, len(object))
+				return self.__class__(*[to_fraction(self.axes[i], object[i]) for i in range(dim)],
+									  name=self.name, color=self.color, alpha=self.alpha)
 			else:
 				raise ConstructError(f"Unsupported operand type(s) for //: '{self.__class__.__name__}' and '{type(object).__name__}'")
 		except ZeroDivisionError:
@@ -205,12 +224,14 @@ class Point(Primitive, metaclass=PointMeta):
 
 	def __pow__(self, object: Union[int, float, Fraction]) -> 'Point':
 		if isinstance(object, (int, float, Fraction)):
-			return self.__class__([axis ** object for axis in self.axes], name=self.name)
+			return self.__class__([axis ** object for axis in self.axes], name=self.name, color=self.color, alpha=self.alpha)
 		elif isinstance(object, Point):
-			return self.__class__([self.axes[i] ** object.axes[i] for i in range(max(self.dimension, object.dimension))], name=self.name)
+			return self.__class__([self.axes[i] ** object.axes[i] for i in range(max(self.dimension, object.dimension))],
+								  name=self.name, color=self.color, alpha=self.alpha)
 		elif isinstance(object, (tuple, list, np.ndarray)):
 			object = AxesList(object)
-			return self.__class__([self.axes[i] ** object[i] for i in range(max(self.dimension, len(object)))], name=self.name)
+			return self.__class__([self.axes[i] ** object[i] for i in range(max(self.dimension, len(object)))],
+								  name=self.name, color=self.color, alpha=self.alpha)
 		else:
 			raise ConstructError(f"Unsupported operand type(s) for **: '{self.__class__.__name__}' and '{type(object).__name__}'")
 
@@ -598,16 +619,12 @@ class Line(Primitive):
 	# Cuts from pos1 and pos2 unnecessary axes
 	def project_to(self, dimension: int) -> 'Line':
 		if dimension == 0:
-			return Point(name=self.name)
-		elif dimension == 1:
-			return Line(self.pos1.x, self.pos2.x, name=self.name, color=self.color, alpha=self.alpha)
-		elif dimension >= 2:
-			if dimension >= self.dimension:
-				return self.copy()
-			else:
-				return self.__class__(
-					list(self.pos1.axes[:dimension]), list(self.pos2.axes[:dimension]), name=self.name
-				)
+			return Point(name=self.name, color=self.color, alpha=self.alpha)
+		elif dimension >= self.dimension:
+			return self.copy()
+		else:
+			return self.__class__(self.pos1.project_to(dimension), self.pos2.project_to(dimension),
+									  name=self.name, color=self.color, alpha=self.alpha)
 
 	def get_perpendicular(self) -> Union['Space', 'Line']:
 		if self.dimension >= 3:
@@ -1170,13 +1187,13 @@ class Vector(Segment, metaclass=VectorMeta):
 				self.pos1,
 				(self.pos2 - self.pos1) * other,
 				name=self.name, alpha=self.alpha, color=self.color
-			).at_pos(self.pos1)
+			).at_pos(self.pos1) if round(other, 10) != 0 else self.pos1
 		elif isinstance(other, Point):
 			return Vector(
 				self.pos1 * other,
 				self.pos2 * other,
 				name=self.name, alpha=self.alpha, color=self.color
-			)
+			) if other != [0] else self.pos1
 		else:
 			raise TypeError(f"Unsupported operand type(s) for *: 'Vector' and '{type(other).__name__}'")
 
@@ -1434,7 +1451,8 @@ class AffineSpace:
 				]
 
 		elif isinstance(object, (AffineSpace)):
-			...
+			... # TODO: придумать как пересекать аффинные пространства
+				#  затем добавить пересечения типа Polygon/Circle x AffineSpace а уже потом можно придумать и с Shape3D
 
 		elif hasattr(object, 'intersects') and not isinstance(object, Primitive):
 			return object.intersects(self)
@@ -1599,8 +1617,8 @@ class AffineSpace:
 					  name=pr.name, alpha=pr.alpha, color=pr.color)
 
 	def primitive_to_global(self, pr: 'Primitive') -> 'Primitive':
-		return obj.__class__(self.point_to_global(obj.pos1), self.point_to_global(obj.pos2),
-					  name=obj.name, alpha=obj.alpha, color=obj.color)
+		return pr.__class__(self.point_to_global(pr.pos1), self.point_to_global(pr.pos2),
+					  name=pr.name, alpha=pr.alpha, color=pr.color)
 
 	def object_to_local(self, obj: Union[Primitive, Shape2D]) -> Union[Primitive, Shape2D]:
 		from .shapes2d import Polygon

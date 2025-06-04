@@ -27,15 +27,20 @@ class Scene:
             self.add_line(object)
         elif isinstance(object, Polygon):
             self.add_polygon(object)
+        elif isinstance(object, Ellipse): # TODO: поменять с кругом местами
+            self.add_ellipse(object)
         elif isinstance(object, Circle):
             self.add_circle(object)
-        elif isinstance(object, Oval):
-            self.add_oval(object)
         else:
             raise SceneError(f'Unexpected type {type(object)}. Object must be Shape/Primitive/Point')
 
     def save(self, filepath: str):
+        self.make_scene()
         plt.savefig(filepath)
+
+    def show(self):
+        self.make_scene()
+        plt.show()
 
 
 class Scene2D(Scene):
@@ -50,30 +55,31 @@ class Scene2D(Scene):
         for object in args:
             self.add(object)
 
-    def add_circle(self, circle: 'Circle'):
-        self.points.append(circle.center)
+    def add_circle(self, circle: 'Circle'): # TODO: поправить превращение круга в овал под нужным углом при проекции
+        center_proj = circle.center.project_to(self.dimension)
+        self.points.append(center_proj)
 
-        self.points.append(circle.center - [circle.radius, 0])
-        self.points.append(circle.center + [circle.radius, 0])
-        self.points.append(circle.center - [0, circle.radius])
-        self.points.append(circle.center + [0, circle.radius])
+        self.points.append(center_proj - [circle.radius, 0])
+        self.points.append(center_proj + [circle.radius, 0])
+        self.points.append(center_proj - [0, circle.radius])
+        self.points.append(center_proj + [0, circle.radius])
 
         self.ax.add_patch(
             MPLEllipse(xy=(circle.center.x, circle.center.y), width=circle.diameter, height=circle.diameter,
                        edgecolor=circle.color, fc='None', alpha=circle.alpha)
         )
 
-    def add_oval(self, oval: 'Oval'):
-        self.points.append(oval.center)
+    def add_ellipse(self, ellipse: 'Ellipse'):
+        self.points.append(ellipse.center)
 
-        self.points.append(oval.center - [oval.radius_x, 0])
-        self.points.append(oval.center + [oval.radius_x, 0])
-        self.points.append(oval.center - [0, oval.radius_y])
-        self.points.append(oval.center + [0, oval.radius_y])
+        self.points.append(ellipse.center - [ellipse.radius_x, 0])
+        self.points.append(ellipse.center + [ellipse.radius_x, 0])
+        self.points.append(ellipse.center - [0, ellipse.radius_y])
+        self.points.append(ellipse.center + [0, ellipse.radius_y])
 
         self.ax.add_patch(
-            MPLEllipse(xy=(oval.center.x, oval.center.y), width=oval.diameter_x, height=oval.diameter_y,
-                       edgecolor=oval.color, fc='None', alpha=oval.alpha)
+            MPLEllipse(xy=(ellipse.center.x, ellipse.center.y), width=ellipse.diameter_x, height=ellipse.diameter_y,
+                       edgecolor=ellipse.color, fc='None', alpha=ellipse.alpha)
         )
 
     def add_polygon(self, polygon: 'Polygon'):
@@ -93,12 +99,21 @@ class Scene2D(Scene):
         self.points.append(segment.pos2)
 
     def add_ray(self, ray: 'Ray'):
+        if ray.pos1.project_to(self.dimension) == ray.pos2.project_to(self.dimension):
+            self.add(ray.pos1)
+            return
+
+        ray = ray.project_to(self.dimension)
         self.rays.append(ray)
         self.points.append(ray.pos1)
-        circle = Circle(ray.pos1, 6)
+        circle = Circle2D(ray.pos1, 6)
         self.points.append(circle.intersects(ray)[0])
 
     def add_vector(self, vector: 'Vector'):
+        if vector.pos1.project_to(self.dimension) == vector.pos2.project_to(self.dimension):
+            self.add(vector.pos1.project_to(self.dimension))
+            return
+
         self.ax.add_line(
             mpl_Line2D([vector.pos1.x, vector.pos2.x], [vector.pos1.y, vector.pos2.y], color=vector.color, marker='.',
                    linewidth=2, alpha=vector.alpha))
@@ -108,7 +123,11 @@ class Scene2D(Scene):
         self.points.append(vector.pos2)
 
     def add_line(self, line: 'Line'):
-        self.lines.append(line)
+        if line.pos1.project_to(self.dimension) == line.pos2.project_to(self.dimension):
+            self.add(line.pos1)
+            return
+
+        self.lines.append(line.project_to(self.dimension))
         self.points.append(line.pos1)
         self.points.append(line.pos2)
 
@@ -120,7 +139,7 @@ class Scene2D(Scene):
         self.ax.add_line(
             mpl_Line2D([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], color=line.color, alpha=line.alpha))
 
-    def show(self):
+    def make_scene(self):
         if self.points:
             min_x = min([point.x for point in self.points]) - 1
             min_y = min([point.y for point in self.points]) - 1
@@ -178,7 +197,6 @@ class Scene2D(Scene):
                                     f'Intersection of Scene and Line gets invalid result {ions}, it must be Point, Line, Ray or Segment list')
                 else:
                     self.ax.axis('equal')
-                    plt.show()
                     self.points.append(scene_rect.center_of_mass.height_to(line).pos2)
                     return
 
@@ -189,7 +207,6 @@ class Scene2D(Scene):
                     mpl_Line2D([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], color=line.color, alpha=line.alpha))
 
         self.ax.axis('equal')
-        plt.show()
 
 
 class Scene3D(Scene):
@@ -259,6 +276,24 @@ class Scene3D(Scene):
         self.points.append(circle.space.point_to_global(Point(0, -r)))
         self.points.append(circle.space.point_to_global(Point(0, r)))
 
+    def add_ellipse(self, ellipse: 'Ellipse'):
+        theta = np.linspace(0, 2 * np.pi, 100)
+        points = []
+        for t in theta:
+            vec1 = ellipse.space.zero_vectors[0] * np.cos(t) * ellipse.radius_x
+            vec2 = ellipse.space.zero_vectors[1] * np.sin(t) * ellipse.radius_y
+            points.append(
+                ellipse.center + (vec1 if type(vec1)==Point else vec1.pos2) + (vec2 if type(vec2)==Point else vec2.pos2)
+            )
+
+        self.points.append(ellipse.center)
+        self.points.append((ellipse.space.vectors[0] * ellipse.radius_x).pos2)
+        self.points.append((ellipse.space.vectors[0] * -ellipse.radius_x).pos2)
+        self.points.append((ellipse.space.vectors[1] * ellipse.radius_y).pos2)
+        self.points.append((ellipse.space.vectors[1] * -ellipse.radius_y).pos2)
+
+        self.ax.plot([p.x for p in points], [p.y for p in points], [p.z for p in points], color=ellipse.color)
+
     def add_shape3d(self, shape: 'Shape3D'):
         for polygon in shape.edges:
             self.add_polygon(polygon)
@@ -277,7 +312,7 @@ class Scene3D(Scene):
         self.ax.plot([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], [line.pos1.z, line.pos2.z],
                      color=line.color, alpha=line.alpha)
 
-    def show(self):
+    def make_scene(self):
         if self.points:
             min_x = min([point.x for point in self.points])
             min_y = min([point.y for point in self.points])
@@ -348,8 +383,6 @@ class Scene3D(Scene):
             for line in self.lines:
                 self.ax.plot([line.pos1.x, line.pos2.x], [line.pos1.y, line.pos2.y], [line.pos1.z, line.pos2.z],
                              color=line.color)
-
-        plt.show()
 
 
 def make_aspace_scene(space) -> 'Scene':

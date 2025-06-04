@@ -2,7 +2,7 @@ from typing import *
 from math import sqrt
 import numpy as np
 
-from ._types import eq_len_axeslists
+from ._types import eq_len_axeslists, to_fraction
 
 
 EPSILON = 9e-10
@@ -13,22 +13,19 @@ class QuadraticEq:
 		self.b = b
 		self.c = c
 		self.solution = None # it will contains solution if you use once method solve()
+		self.D = self.b ** 2 - 4 * self.a * self.c
 		self.discriminant = self.D
 
 	def solve(self) -> List[float]:
 		self.solution = list({
-			( -self.b + sqrt(self.D) ) / ( 2 * self.a ),
-			( -self.b - sqrt(self.D) ) / ( 2 * self.a ),
+			to_fraction(( -self.b + sqrt(self.D) ), ( 2 * self.a )),
+			to_fraction(( -self.b - sqrt(self.D) ), ( 2 * self.a )),
 		}) if self.D >= 0 else []
 		return self.solution
 
 	@property
 	def math_view(self) -> str:
 		return f'{self.a}x^2 + {self.b}x + {self.c} = 0'
-	
-	@property
-	def D(self) -> float:
-		return self.b**2 - 4 * self.a * self.c
 
 	def __str__(self):
 		return self.math_view
