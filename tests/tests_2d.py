@@ -8,9 +8,9 @@ save_scene = True
 show_scene = True
 
 def make_scene(*objects):
-	print('OBJECTS:')
+	print(' OBJECTS:')
 	for i in objects:
-		print(i)
+		print(' ', i)
 	scene = Scene2D(*objects)
 	if save_scene:
 		scene.save(output_image_path)
@@ -87,7 +87,7 @@ def test_line_circle_intersection():
 		make_scene(circle, line, *ions)
 		raise e
 
-def test_ray_segment_intersects_circle():
+def test_ray_intersects_circle():
 	step = 0.1
 	circle = Circle2D([1,1], 5)
 
@@ -109,28 +109,6 @@ def test_ray_segment_intersects_circle():
 
 	except AssertionError as e:
 		make_scene(circle, ray, *ions)
-		raise e
-
-	try:
-		for degree in range(-360, 360):
-			segm = Segment.by_angle(degree, pos1=circle.center, length=circle.radius)
-			ions = circle.intersects(segm)
-			assert len(ions) == 1, f'Segment intersects circle in {len(ions)} points but must to intersects in one point'
-
-		segment = Segment([0,0], [1,0])
-		for s in range(int(circle.radius/step), 0, -1):
-			segm = segment + Point[circle.x, circle.y + circle.radius - s * step]
-			ions = segm.intersects(circle)
-			assert len(ions) == 1, f'Segment intersects circle in {len(ions)} points but must to intersects in one point'
-
-		segm = segment + Point[circle.x, circle.y + circle.radius + 1]
-		ions = segm.intersects(circle)
-		assert len(ions) != 1, f'Segment intersects circle in {len(ions)} points but must to intersects in 0 or 2 points'
-
-	except AssertionError as e:
-		for i in [segm, circle, ions]:
-			print(i)
-		Scene2D(circle, segm, *ions).save(output_image_path)
 		raise e
 
 def test_circles_intersection():

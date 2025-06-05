@@ -1,3 +1,4 @@
+from http.server import nobody
 from typing import *
 from math import sqrt, acos, cos, sin, degrees, tan, radians
 from string import ascii_lowercase
@@ -63,8 +64,8 @@ class Point(Primitive, metaclass=PointMeta):
 
 	# Returns a Point that makes with self Point a new Line that makes perpendicular to line
 	def project_to_line(self, pr: 'Line') -> 'Point':
-		p1 = np.array(pr.pos1.axes)
-		axes, line_vector = eq_len_axeslists(self.axes, pr.vector.pos2.axes)
+		axes, line_vector, p1 = eq_len_axeslists(self.axes, pr.vector.pos2.axes, pr.pos1.axes)
+		p1 = np.array(p1)
 
 		return Point(
 			*(p1 + np.array(np.dot(np.array(axes) - p1, line_vector) / np.dot(line_vector, line_vector)) * line_vector),
@@ -107,11 +108,14 @@ class Point(Primitive, metaclass=PointMeta):
 	@property
 	def float_axes(self) -> List[float]:
 		return AxesList([float(axis) for axis in self.axes])
-
 	@property
 	def rounded_axes(self) -> List[float]:
 		return AxesList([round(float(axis), 6) for axis in self.axes])
 
+	# The count of varying axes
+	@property
+	def true_dimension(self) -> int:
+		return len([ i for i in self.pos if i != 0 ])
 	@property
 	def dimension(self) -> int:
 		return len(self.axes)
@@ -126,6 +130,13 @@ class Point(Primitive, metaclass=PointMeta):
 			return self.axes[letters.index(i)]
 		else:
 			raise IndexError(f"Attribute '{i}' not found in axes or object attributes.")
+
+	def __setattr__(self, key, value):
+		global letters
+		if key in letters:
+			self.axes[letters.index(key)] = value
+		else:
+			super().__setattr__(key, value)
 
 	def __eq__(self, obj):
 		if isinstance(obj, Point):
@@ -258,6 +269,9 @@ class Point(Primitive, metaclass=PointMeta):
 		else:
 			return self.axes[i]
 
+	def __setitem__(self, index, value):
+		self.axes[index] = value
+
 	def __str__(self):
 		rounded_axes = str([ (round(float(axis), 4) if float(axis) >= 0 else round(float(axis), 3)) for axis in self.axes ])
 		return self.__class__.__name__ + rounded_axes
@@ -344,20 +358,14 @@ class Line(Primitive):
 					Point[object.pos1[true_dim_indexes_2[0]], object.pos1[true_dim_indexes_2[1]]],
 					Point[object.pos2[true_dim_indexes_2[0]], object.pos2[true_dim_indexes_2[1]]],
 				)
-				point1 = Point([0] * true_dim_indexes_2[0] +
-							   [x] +
-							   [0] * (true_dim_indexes_2[1] - true_dim_indexes_2[0] - 1) +
-							   [second.y_from_x(x)] +
-							   [0] * (self.true_dimension - true_dim_indexes_2[1] - 1),
-							   name=result_name
-							   )
-				point2 = Point([0] * true_dim_indexes_2[0] +
-							   [second.x_from_y(y)] +
-							   [0] * (true_dim_indexes_2[1] - true_dim_indexes_2[0] - 1) +
-							   [y] +
-							   [0] * (self.true_dimension - true_dim_indexes_2[1] - 1),
-							   name=result_name
-							   )
+				point1 = self.pos1.copy()
+				point1.axes[true_dim_indexes_2[0]] = x
+				point1.axes[true_dim_indexes_2[1]] = second.y_from_x(x)
+
+				point2 = self.pos1.copy()
+				point2.axes[true_dim_indexes_2[0]] = second.x_from_y(y)
+				point2.axes[true_dim_indexes_2[1]] = y
+
 				# points like Point[0,0,..., x, ..., y, ..., 0,0]
 				if point1 in object and point1 in self:
 					return [point1]
@@ -417,12 +425,20 @@ class Line(Primitive):
 				ios = []
 				non_point_intersections = []
 				for projected_line1, projected_line2 in zip(obj2ds, self2ds):
-					if projected_line1 in projected_line2:
-						ion = projected_line1.intersects(projected_line2)[0]
-						if isinstance(ion, Point):
-							ios.append(ion)
-						else:
-							non_point_intersections.append(ion)
+					if type(projected_line1) == type(projected_line2) == Line:
+						ions = projected_line1.intersects(projected_line2)
+						if ions:
+							if isinstance(ions[0], Point):
+								ios.append(ions[0])
+							else:
+								non_point_intersections.append(ions[0])
+
+					elif isinstance(projected_line1, Point) and isinstance(projected_line2, Line):
+						if projected_line1 in projected_line2:
+							ios.append(projected_line1)
+					elif isinstance(projected_line2, Point) and isinstance(projected_line1, Line):
+						if projected_line2 in projected_line1:
+							ios.append(projected_line2)
 
 				if ios:
 					if Point[0] in self and Point[0] in object:
@@ -436,11 +452,13 @@ class Line(Primitive):
 						point.append(sum(non_zero_axes) / len(non_zero_axes) if non_zero_axes != [] else 0)
 
 					point = Point(point, name=result_name)
+					point_true_axes = [a for a in point.axes if a != 0]
+					point_true_axes = point_true_axes + [0] * (2 - len(point_true_axes))
+					point_projection = Point(point_true_axes[0], point_true_axes[1])
 					for line in non_point_intersections:
-						lines_axes_indexes = [i for i, (p1, p2) in enumerate(zip(line.pos1, line.pos2)) if p1 != p2]
-						point_projection = Point(point[lines_axes_indexes[0]], point[lines_axes_indexes[1]])
 						if not point_projection in line:
 							return []
+
 					return [point] if point in self and point in object else []
 
 				elif non_point_intersections:
@@ -740,7 +758,7 @@ class Line(Primitive):
 
 	@property
 	def center(self) -> Point:
-		return Point((self.pos1 + self.pos2) / 2, name=center_name.format(self.name))
+		return Point(((self.pos1 + self.pos2) / 2).axes, name=center_name.format(self.name))
 
 	@staticmethod
 	def by_func(func: callable, **kwargs) -> 'Line':
@@ -822,23 +840,23 @@ class Segment(Line):
 		center = Point(random_x, func(random_x))
 
 		pos1 = Point[1.0,func(1)]
-		line = Line(center, Point(random_x+1, func(random_x+1)))
+		line = Line(center, Point(random_x+1, func(random_x+1)), **kwargs)
 		vector = line.vector.at_pos(pos1).normalize
 
-		return Segment(pos1, (vector * length).pos2, **kwargs)
+		return (vector * length).to_segment
 
 	@staticmethod
-	def by_angle(angle: int, length: int, pos1: Union[tuple, list, 'Point'] = [0,0], **kwargs) -> 'Segment':
+	def by_angle(angle: float, length: float, pos1: Union[tuple, list, 'Point'] = [0,0], **kwargs) -> 'Segment':
 		if isinstance(pos1, (tuple, list, np.ndarray)):
 			pos1 = Point(*pos1)
 
 		dx = cos(radians(angle))
 		dy = sin(radians(angle))
 
-		line = Line(pos1, pos1 + [dx, dy])
+		line = Line(pos1, pos1 + [dx, dy], **kwargs)
 		vector = line.vector.at_pos(pos1).normalize
 
-		return Segment(pos1, (vector * length).pos2, **kwargs).at_pos(pos1)
+		return (vector * length).to_segment
 
 	@property
 	def random_point(self) -> 'Point':
@@ -1115,27 +1133,10 @@ class Vector(Segment, metaclass=VectorMeta):
 
 	@staticmethod
 	def by_func(func: callable, length: int, **kwargs) -> 'Vector':
-		from .shapes2d import Circle
-
-		random_x = float(r.randint(-10, 10))
-		center = Point(random_x, func(random_x))
-
-		line = Line(center, Point(random_x+1, func(random_x+1)))
-		points = Circle(center, length).intersects(line)
-
-		return Vector([1.0,func(1)], points[0], **kwargs)
-
+		return super().by_func(angle, length, pos1=pos1, **kwargs).to_vector
 	@staticmethod
 	def by_angle(pos1: Union[tuple, list, 'Point'], angle: int, length: int, **kwargs) -> 'Vector':
-		if isinstance(pos1, (tuple, list, np.ndarray)):
-			pos1 = Point(*pos1)
-
-		k = tan(radians(angle))
-		m = pos1.y - pos1.x * k
-		line = Line.by_func( lambda x: k * x + m )
-		points = Circle(center, length).intersects(line)
-		
-		return Vector([1.0,func(1)], points[0], **kwargs)
+		return super().by_angle(angle, length, pos1=pos1, **kwargs).to_vector
 
 	def __neg__(self) -> 'Vector':
 		return self * -1
@@ -1185,9 +1186,9 @@ class Vector(Segment, metaclass=VectorMeta):
 		if isinstance(other, (float, int)):
 			return Vector(
 				self.pos1,
-				(self.pos2 - self.pos1) * other,
+				self.pos1 + (self.pos2 - self.pos1) * other,
 				name=self.name, alpha=self.alpha, color=self.color
-			).at_pos(self.pos1) if round(other, 10) != 0 else self.pos1
+			) if round(other, 10) != 0 else self.pos1
 		elif isinstance(other, Point):
 			return Vector(
 				self.pos1 * other,
@@ -1197,56 +1198,8 @@ class Vector(Segment, metaclass=VectorMeta):
 		else:
 			raise TypeError(f"Unsupported operand type(s) for *: 'Vector' and '{type(other).__name__}'")
 
-	def __truediv__(self, other) -> 'Vector':
-		if isinstance(other, (float, int)):
-			return Vector(
-				self.pos1,
-				Point([to_fraction(self.pos2[i], other) for i in range(self.dimension)]),
-				name=self.name, alpha=self.alpha, color=self.color
-			)
-		elif isinstance(other, Point):
-			return Vector(
-				self.pos1 / other,
-				self.pos2 / other,
-				name=self.name, alpha=self.alpha, color=self.color
-			)
-		else:
-			raise TypeError(f"Unsupported operand type(s) for /: 'Vector' and '{type(other).__name__}'")
-
-	def __floordiv__(self, other) -> 'Vector':
-		if isinstance(other, (float, int)):
-			return Vector(
-				self.pos1,
-				Point([self.pos2[i] // other for i in range(self.dimension)]),
-				name=self.name, alpha=self.alpha, color=self.color
-			)
-		elif isinstance(other, Point):
-			return Vector(
-				self.pos1 // other,
-				self.pos2 // other,
-				name=self.name, alpha=self.alpha, color=self.color
-			)
-		else:
-			raise TypeError(f"Unsupported operand type(s) for //: 'Vector' and '{type(other).__name__}'")
-
-	def __pow__(self, other) -> 'Vector':
-		if isinstance(other, (float, int)):
-			return Vector(
-				self.pos1,
-				Point([self.pos2[i] ** other for i in range(self.dimension)]),
-				name=self.name, alpha=self.alpha, color=self.color
-			)
-		elif isinstance(other, Point):
-			return Vector(
-				self.pos1 ** other,
-				self.pos2 ** other,
-				name=self.name, alpha=self.alpha, color=self.color
-			)
-		else:
-			raise TypeError(f"Unsupported operand type(s) for ** or pow(): 'Vector' and '{type(other).__name__}'")
-
 	def __str__(self):
-		if self.pos1 != 0:
+		if self.pos1 != [0]:
 			return f'{self.__class__.__name__}[({self.pos1} -> {self.pos2})]'
 		else:
 			return f'{self.__class__.__name__}[{self.pos2}]'
@@ -1474,6 +1427,7 @@ class AffineSpace:
 
 	# converts local primitive or shape to primitive or shape in global coordinate system
 	def to_global(self, object: Union[Primitive, 'Polygon']):
+		from .shapes2d import Polygon
 		match object:
 			case Point():
 				return self.point_to_global(object)
@@ -1503,7 +1457,7 @@ class AffineSpace:
 		eq = [0] * (point.dimension - len(basis_matrix[0]))
 
 		matrix = [[*axis, *eq] for axis in basis_matrix]
-		dot = np.dot(matrix, point.axes)
+		dot = np.dot(matrix, point.axes.as_list(self.dimension))
 		return Point(dot, name=affine_space_global_object_name.format(self.name), color=point.color, alpha=point.alpha)
 
 	def get_normal(self) -> Vector:
@@ -1636,6 +1590,12 @@ class AffineSpace:
 	@property
 	def zero_vectors(self) -> List[Vector]:
 		return [v.to_zero for v in self.vectors]
+	@property
+	def zero_vec1(self) -> Vector:
+		return self.vectors[0].to_zero
+	@property
+	def zero_vec2(self) -> Vector:
+		return self.vectors[1].to_zero
 
 	@property
 	def normal(self) -> Vector:
@@ -1670,9 +1630,9 @@ class Space(AffineSpace):
 	def __init__(self, origin: 'Point', vectors: Union[List['Point'], List['Vector']], **kwargs):
 		super().__init__(origin, vectors, **kwargs)
 
-		l = round(self.vectors[0].length, 8)
+		l = round(self.vectors[0].length, 4)
 		for i in range(len(self.vectors)):
 			if not self.vectors[i].is_perpendicular(self.vectors[i-1]):
 				raise ConstructError(f'Vectors must be perpendiculars')
-			if round(self.vectors[i].length, 8) != l:
-				raise ConstructError(f'Vectors must have equal lengths')
+			if round(self.vectors[i].length, 4) != l:
+				raise ConstructError(f'Vectors must have equal lengths {l}')

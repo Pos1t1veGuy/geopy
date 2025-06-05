@@ -43,6 +43,11 @@ class AxesList(list):
 			raise IndexError('Axis index must be integer >=0')
 		return Fraction(0)
 
+	def __setitem__(self, index, value):
+		while len(self) < index+1:
+			self.append(Fraction(0))
+		super().__setitem__(index, to_fraction(value))
+
 	def as_list(self, length: int = -1) -> list:
 		# Convert to default list
 		if length == -1 or len(self) == length:

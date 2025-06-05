@@ -8,9 +8,9 @@ save_scene = True
 show_scene = True
 
 def make_scene(*objects):
-	print('OBJECTS:')
+	print(' OBJECTS:')
 	for i in objects:
-		print(i)
+		print(' ', i)
 	scene = Scene3D(*objects)
 	if save_scene:
 		scene.save(output_image_path)

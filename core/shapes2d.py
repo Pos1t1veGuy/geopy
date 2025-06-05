@@ -90,11 +90,30 @@ class Polygon(Shape2D):
 		if isinstance(object, (tuple, list, np.ndarray)):
 			object = Point(*object)
 
-		if isinstance(object, Line):
-			if object.pos1 in self and object.pos2 in self:# line lies on space
-				return self.intersects_2d(object, check_inside=check_inside)
-
 		space = self.get_normal_space()
+		if isinstance(object, Line):
+			if object.pos1 in space and object.pos2 in space:# line lies on space
+				return self.intersects_2d(object, check_inside=check_inside)
+		elif isinstance(object, Ellipse):
+			if object.center in space and self.center_of_mass in object.space: # ellipse lies on space
+				return self.intersects_2d(object, check_inside=check_inside)
+			# TODO: когда доделаю пересечение аффинных пространств сделать пересечение Эллипс х Полигон
+		elif isinstance(object, Polygon):
+			if object.center_of_mass in space and self.center_of_mass in object.normal_space: # ellipse lies on space
+				return self.intersects_2d(object, check_inside=check_inside)
+			else:
+				ions = []
+				for segment in object.segments:
+					ion = self.intersects(segment)
+					for i in ion:
+						ions.append(i)
+				for segment in self.segments:
+					ion = object.intersects(segment)
+					for i in ion:
+						ions.append(i)
+
+				return ions
+
 		ions = space.intersects(object)
 
 		pol2d = space.get_local_polygons(name=self.name)[0]
@@ -478,8 +497,12 @@ class Triangle(Polygon):
 	def __init__(self, pos1: Point, pos2: Point, pos3: Point, name: str = 'Triangle', pos: Point = None,
 				 segment_object = Segment, color: str = 'cyan', segments_color: str = 'r', alpha: str = 0.5,
 				 space_check: bool = True):
+
+		self.pos1, self.pos2, self.pos3 = pos1, pos2, pos3
+
 		super().__init__(pos1, pos2, pos3, name=name, pos=pos, segment_object=segment_object, space_check=space_check,
 						 color=color, segments_color=segments_color, alpha=alpha)
+
 		self.side1, self.side2, self.side3 = self.segments
 
 	def copy(self, space_check: bool = True) -> 'Polygon':
@@ -599,283 +622,9 @@ class Rhombus(Polygon):
 		name=name, pos=pos, segment_object=segment_object, space_check=space_check)
 
 
-class Circle(Shape2D):
-	def __init__(self, center: 'Point', radius: Union[int, float], vec1: Vector, vec2: Vector,
-				 name: str = 'Circle', color: str = 'purple', alpha: Union[int, float] = 1):
-		if isinstance(center, (tuple, list, np.ndarray)):
-			center = Point(*center)
-		if isinstance(vec1, (tuple, list, np.ndarray)):
-			vec1 = Vector[vec1]
-		if isinstance(vec2, (tuple, list, np.ndarray)):
-			vec2 = Vector[vec2]
-
-		if not isinstance(radius, (float, int)):
-			raise ConstructError(f'Incorrect radius for circle: it must be positive number, not {radius}, {type(radius)}')
-		if radius <= 0:
-			raise ConstructError(f'Incorrect radius for circle: it must be positive number, not {radius}, {type(radius)}')
-
-		self.radius = radius
-		self.center = center
-		self.space = Space(self.center, [vec1, vec2])
-		self.normal_vector = self.space.normal
-
-		self.name = name
-		self.color = color
-		self.alpha = alpha
-
-	def intersects(self, object: Union[Primitive,Shape,'Point',tuple,list], check_inside: bool = True) -> List['Point']:
-		if isinstance(object, (tuple, list, np.ndarray)):
-			object = Point(*object)
-
-		if object.dimension <= 2:
-			return self.intersects_2d(object, check_inside=check_inside)
-		else:
-			space = self.space.copy()
-			ions = space.intersects(object)
-
-			local_ions = [space.to_local(ion) for ion in ions]
-			res = []
-			for lion in local_ions:
-				for ion in self.intersects_2d(lion):
-					res.append(space.to_global(ion))
-
-			return res
-
-	def intersects_2d(self, object: Union[Primitive,Shape,'Point',tuple,list], check_inside:bool=True) -> List['Point']:
-		if isinstance(object, (tuple, list, np.ndarray)):
-			object = Point(*object)
-
-		if isinstance(object, Point):
-			if check_inside:
-				if object != self.center:
-					return [object] if round(Segment(self.center, object).length, 10) <= self.radius + EPSILON else []
-				return [object]
-			else:
-				if object != self.center:
-					return [object] if round(Segment(self.center, object).length - self.radius, 10) <= EPSILON else []
-				return []
-
-		elif isinstance(object, (Segment, Ray, Line, Vector)):
-			res = []
-			if object.k:
-				# (1+k**2)x**2 + 2(km−k⋅self.x−self.y)x + (m**2+self.y**2−2mb−r**2+b**2)=0
-				eq = QuadraticEq(
-					a = 1 + object.k**2,
-					b = 2 * (object.k * object.m - object.k * self.y - self.x),
-					c = object.m**2 + self.x**2 - 2 * object.m * self.y + self.y**2 - self.radius**2,
-				)
-				res = [ Point(x, object.y_from_x(x)) for x in eq.solve() if Point(x, object.y_from_x(x)) in object ]
-			elif object.direction in ['horizontal', 'left', 'right'] and self.x_from_y(object.pos1.y) != None:
-				res = [ Point(x, object.pos1.y) for x in self.x_from_y(object.pos1.y) if Point(x, object.pos1.y) in object ]
-			elif object.direction in ['vertical', 'up', 'down'] and self.y_from_x(object.pos1.x) != None:
-				res = [ Point(object.pos1.x, y) for y in self.y_from_x(object.pos1.x) if Point(object.pos1.x, y) in object ]
-			elif object.direction == 'point':
-				res = object.pos1 if self.intersects(object.pos1) else []
-
-			if not res and check_inside:
-				if self.intersects(object.pos1, check_inside=check_inside):
-					return [object.pos1.copy()]
-				elif self.intersects(object.pos2, check_inside=check_inside):
-					return [object.pos2.copy()]
-
-			return res
-
-		elif isinstance(object, Polygon):
-			res = []
-			for segment in object.segments:
-				if segment in self:
-					for point in self.intersects(segment):
-						res.append(point)
-			if res:
-				return res
-
-		elif isinstance(object, Circle):
-			if self.center == object.center:
-				return [self.center.copy()] if check_inside else []
-
-			distance = Segment(self.center, object.center)
-			if distance.length > self.radius + object.radius:
-				return []
-
-			if distance.length == 0:
-				return [Circle(self.center, self.radius, name=self.name)]
-
-			else:
-				distance = Segment(self.center, object.center)
-
-				if distance.length == self.radius + object.radius:
-					res = self.intersects(distance)
-					return res if res[0] in self and res[0] in object else []
-
-				elif distance.length < self.radius + object.radius:
-					a = to_fraction(self.radius**2 - object.radius**2 + distance.length**2, 2 * distance.length)
-					if self.radius**2 - a**2 > 0 and object.radius**2 - a**2:
-						h = sqrt(self.radius**2 - a**2) if self.radius**2 - a**2 > 0 else sqrt(object.radius**2 - a**2)
-						intercenter = Point(
-							self.x + a * (object.x - self.x) / distance.length,
-							self.y + a * (object.y - self.y) / distance.length,
-						)
-						return [
-							Point(intercenter.x + h*(object.y - self.y) / distance.length,
-								  intercenter.y - h*(object.x - self.x) / distance.length),
-							Point(intercenter.x - h*(object.y - self.y) / distance.length,
-								  intercenter.y + h*(object.x - self.x) / distance.length),
-						]
-					return []
-
-				elif distance.length + self.radius < object.radius and check_inside:
-					return [self.center]
-				elif distance.length + object.radius < self.radius and check_inside:
-					return [object.center]
-
-				return []
-
-		else:
-			raise IntersectionError(f'"intersects_2d" method takes Union[Primitive, Shape2D, Point, tuple, list], not {object}')
-
-	def at_pos(self, position: List[[int, int]]) -> 'Circle':
-		if self.center != position:
-			return self.__class__(position, self.radius, name=self.name)
-		return self.copy()
-
-	def to_pos(self, position: List[[int, int]]):
-		if isinstance(position, (tuple, list, np.ndarray)):
-			position = Point(*object)
-		self.center = position
-
-	def scale(self, factor: float) -> 'Circle':
-		return self.__class__(self.pos, self.radius*factor, name=self.name)
-
-	def y_from_x(self, x: float) -> float:
-		if self.radius**2 - (x - self.x)**2 == 0:
-			return [self.y]
-		elif self.radius**2 - (x - self.x)**2 > 0:
-			return [
-				-sqrt(self.radius**2 - (x - self.x)**2) + self.y,
-				+sqrt(self.radius**2 - (x - self.x)**2) + self.y,
-			]
-	def x_from_y(self, y: float) -> float:
-		if self.radius**2 - (y - self.y)**2 == 0:
-			return [self.x]
-		elif self.radius**2 - (y - self.y)**2 > 0:
-			return [
-				-sqrt(self.radius**2 - (y - self.y)**2) + self.x,
-				+sqrt(self.radius**2 - (y - self.y)**2) + self.x,
-			]
-
-	def project_to(self, dimension: int) -> Union['Circle', Line]:
-		if dimension <= 1:
-			raise ConstructError(f'{self.__class__.__name__} can be 2D+ object, not {dimension}D')
-		elif dimension >= self.dimension:
-			return self
-		else:
-			result_vectors_i = [
-				i for i, vec in enumerate(self.space.zero_vectors) if vec.pos2[:dimension] != [0] * dimension
-			]
-
-			match len(result_vectors_i):
-				case 2: # TODO: добавить превращение круга в овал при двумерной проекции
-					return self.__class__(self.center.project_to(dimension), self.radius,
-										  *[self.space.zero_vectors[i] for i in result_vectors_i],
-										  name=self.name, color=self.color, alpha=self.alpha)
-				case 1:
-					vec = self.space.vectors[result_vectors_i[0]].at_pos(self.center)
-					return Segment(vec.pos2, (vec*-1).pos2, name=self.name, color=self.color, alpha=self.alpha)
-				case 0:
-					return self.center
-
-	@property
-	def random_point(self):
-		return self(r.random())
-
-	@property
-	def center_of_mass(self) -> 'Point':
-		return self.center
-	@property
-	def diameter(self) -> float:
-		return self.radius * 2
-
-	@property
-	def x(self) -> float:
-		return self.center.x
-	@property
-	def y(self) -> float:
-		return self.center.y
-	@property
-	def z(self) -> float:
-		return self.center.z
-	@property
-	def w(self) -> float:
-		return self.center.w
-
-	@property
-	def area(self) -> float:
-		return pi * self.radius**2
-	@property
-	def perimeter(self) -> float:
-		return 2 * pi * self.radius
-
-	@property
-	def dimension(self) -> int:
-		return self.space.dimension
-	@property
-	def projection(self) -> 'Circle':
-		if self.dimension > 2:
-			return Circle2D(self.center.project_to(2), self.radius, name=self.name, color=self.color, alpha=self.alpha)
-		else:
-			return self
-
-	@property
-	def as_geometry(self) -> str:
-		return f'(x - {self.x})**2 + (y - {self.y})**2 = {self.radius}**2'
-
-	def __contains__(self, object):
-		return self.intersects(object, check_inside=True)
-
-	def __add__(self, point: Union[Point, list, tuple]) -> 'Circle':
-		if isinstance(point, (list,tuple,np.ndarray)):
-			point = Point(*point)
-		return self.__class__(self.center + point, self.radius, name=self.name)
-	def __sub__(self, point: Union[Point, list, tuple]) -> 'Circle':
-		if isinstance(point, (list,tuple,np.ndarray)):
-			point = Point(*point)
-		return self.__class__(self.center - point, self.radius, name=self.name)
-	def __mul__(self, point: Union[Point, list, tuple]) -> 'Circle':
-		if isinstance(point, (list,tuple,np.ndarray)):
-			point = Point(*point)
-		return self.__class__(self.center * point, self.radius, name=self.name)
-	def __truediv__(self, point: Union[Point, list, tuple]) -> 'Circle':
-		if isinstance(point, (list,tuple,np.ndarray)):
-			point = Point(*point)
-		return self.__class__(self.center / point, self.radius, name=self.name)
-	def __floordiv__(self, point: Union[Point, list, tuple]) -> 'Circle':
-		if isinstance(point, (list,tuple,np.ndarray)):
-			point = Point(*point)
-		return self.__class__(self.center // point, self.radius, name=self.name)
-	def __pow__(self, point: Union[Point, list, tuple]) -> 'Circle':
-		if isinstance(point, (list,tuple,np.ndarray)):
-			point = Point(*point)
-		return self.__class__(self.center ** point, self.radius, name=self.name)
-
-	# 'num' is a number from 0 to 1
-	# Returns point at a Circle that makes with second point sector of a circle like angle (0 -> 0 deg; 1 -> 360 deg)
-	def __call__(self, num: Union[float, int]) -> Point:
-		local_ray = Ray.by_angle(num * 360, pos1=self.center)
-		global_ray = self.space.to_global(local_ray)
-		return self.projection.intersects(global_ray, check_inside=False)[0]
-	
-	def __str__(self):
-		return f"{self.name}({self.center}, radius={self.radius})"
-	def __repr__(self):
-		return f"{self.__class__.__name__}({self.center}, {self.radius}, name='{self.name}')"
-
-def Circle2D(center: Point, radius: Union[int, float], name: str = 'Circle', color: str = 'purple',
-			 alpha: Union[int, float] = 1):
-		return Circle(center, radius, [1,0], [0,1], name=name, color=color, alpha=alpha)
-
-class Ellipse:
-	def __init__(self, center: Point, radius_x: float, radius_y: float, vec1: Vector, vec2: Vector,
-				 name: str = 'Ellipse', color: str = 'r', alpha: Union[int, float] = 1):
+class Ellipse(Shape2D):
+	def __init__(self, center: Point, vec1: Vector, vec2: Vector, name: str = 'Ellipse', color: str = 'r',
+				 alpha: Union[int, float] = 1):
 
 		if isinstance(center, (tuple, list, np.ndarray)):
 			center = Point(*center)
@@ -884,23 +633,15 @@ class Ellipse:
 		if isinstance(vec2, (tuple, list, np.ndarray)):
 			vec2 = Vector[vec2]
 
-		if not isinstance(radius_x, (float, int)):
-			raise ConstructError(f'Incorrect radius for ellipse: it must be positive number, not {radius_x}, {type(radius_x)}')
-		if not isinstance(radius_y, (float, int)):
-			raise ConstructError(f'Incorrect radius for ellipse: it must be positive number, not {radius_y}, {type(radius_y)}')
-		if radius_x <= 0:
-			raise ConstructError(f'Incorrect radius for circle: it must be positive number, not {radius_x}, {type(radius_x)}')
-		if radius_y <= 0:
-			raise ConstructError(f'Incorrect radius for circle: it must be positive number, not {radius_y}, {type(radius_y)}')
-
 		self.center = center
 
-		self.radius_x = radius_x
-		self.radius_y = radius_y
-		self.diameter_x = radius_x*2
-		self.diameter_y = radius_y*2
-		self.space = Space(self.center, [vec1, vec2])
+		self.space = Space(self.center, [vec1.normalize, vec2.normalize])
 		self.normal_vector = self.space.normal
+		self.vec1, self.vec2 = vec1, vec2
+		self.radius_x = vec1.length
+		self.radius_y = vec2.length
+		self.diameter_x = self.radius_x*2
+		self.diameter_y = self.radius_y*2
 
 		self.name = name
 		self.color = color
@@ -910,47 +651,35 @@ class Ellipse:
 		if isinstance(object, (tuple, list, np.ndarray)):
 			object = Point(*object)
 
-		if isinstance(object, Line):
-			if object.pos1 in self and object.pos2 in self: # line lies on space
-				return self.intersects_2d(object, check_inside=check_inside)
-
 		space = self.space.copy()
-		ions = space.intersects(object)
+		global_ions = lambda o: [
+			space.to_global(lion) for lion in self.intersects_2d(o, check_inside=check_inside)
+		]
+		if isinstance(object, Line):
+			if object.pos1 in space and object.pos2 in space: # line lies on space
+				return global_ions(space.to_local(object))
+		elif isinstance(object, Ellipse):
+			if object.center in space and self.center in object.space: # ellipse lies on space
+				return global_ions(object)
+		elif isinstance(object, Polygon):
+			if object.center_of_mass in space and self.center in object.space: # polygon lies on space
+				global_ions(space.to_local(object))
 
-		local_ions = [space.to_local(ion) for ion in ions]
 		res = []
-		for lion in local_ions:
-			for ion in self.intersects_2d(lion):
-				res.append(space.to_global(ion))
+		for ion in space.intersects(object):
+			for lion in global_ions(ion):
+				res.append(lion)
 
 		return res
-
-		if object.dimension <= 2:
-			return self.intersects_2d(object, check_inside=check_inside)
-		else:
-			space = self.space.copy()
-			ions = space.intersects(object)
-
-			local_ions = [space.to_local(ion) for ion in ions]
-			res = []
-			for lion in local_ions:
-				for ion in self.intersects_2d(lion):
-					res.append(space.to_global(ion))
-
-			return res
 
 	def intersects_2d(self, object: Union[Primitive, Shape, 'Point', tuple, list], check_inside: bool = True) -> List['Point']:
 		if isinstance(object, (tuple, list, np.ndarray)):
 			object = Point(*object)
 
 		if isinstance(object, Point):
-			return [object] if (
-				to_fraction(
-					(object.x - self.center.x)**2, self.radius_x**2
-				) + to_fraction(
-					(object.y - self.center.y)**2, self.radius_y**2
-				)
-			) <= 1 else []
+			dx = to_fraction((object.x - self.center.x)**2, self.radius_x**2)
+			dy = to_fraction((object.y - self.center.y)**2, self.radius_y**2)
+			return [object] if dx+dy <= 1 else []
 		elif isinstance(object, (Segment, Ray, Line, Vector)):
 			x1, y1 = object.pos1.x - self.center.x, object.pos1.y - self.center.y
 			x2, y2 = object.pos2.x - self.center.x, object.pos2.y - self.center.y
@@ -965,10 +694,9 @@ class Ellipse:
 			if eq.D < 0:
 				return []
 			elif eq.D == 0:
-				if Point(x1 + t * dx + self.center.x, y1 + t * dy + self.center.y) in object:
-					return [Point(x1 + t * dx + self.center.x, y1 + t * dy + self.center.y)]
-				else:
-					return []
+				t = eq.solve()[0]
+				point = Point(x1 + t * dx + self.center.x, y1 + t * dy + self.center.y)
+				return [point] if point in object else []
 			else:
 				t1, t2 = eq.solve()
 				return [ pos for pos in [
@@ -977,6 +705,7 @@ class Ellipse:
 				] if pos in object ]
 
 		elif isinstance(object, Polygon):
+			object = self.space.to_local(object)
 			res = []
 			for segment in object.segments:
 				if segment in self:
@@ -986,6 +715,11 @@ class Ellipse:
 
 		elif isinstance(object, Ellipse):
 			...
+
+			'''
+			(x1 - a)/r1 + (y1 - b)/r2 = (x2 - c)/r3 + (y2 - d)/r4
+			'''
+
 		else:
 			return []
 
@@ -1011,11 +745,13 @@ class Ellipse:
 					return self.center
 
 	def scale(self, factor: float) -> 'Ellipse':
-		return self.__class__(self.pos, self.radius_x*factor, self.radius_x*factor, name=self.name)
+		return self.__class__(self.pos, self.vec1*factor, self.vec2*factor, name=self.name, color=self.color,
+							  alpha=self.alpha)
 
 	def at_pos(self, position: List[[int, int]]) -> 'Ellipse':
 		if self.center != position:
-			return self.__class__(position, self.radius_x, self.radius_y, name=self.name)
+			return self.__class__(position, self.vec1, self.self.vec2, name=self.name, color=self.color,
+								  alpha=self.alpha)
 		return self.copy()
 
 	def to_pos(self, position: List[[int, int]]):
@@ -1023,14 +759,42 @@ class Ellipse:
 			position = Point(*object)
 		self.center = position
 
+	def y_from_x(self, x: float) -> float:
+		'''                (x - x0)^2
+y = y0 +-sqrt( r2^2 * (1 - ----------)
+                              r1^2
+		'''
+		sqrt_expr = self.radius_y**2 * (1 - ((x - self.x)**2) / self.radius_x**2)
+
+		if sqrt_expr < 0:
+			return []
+		elif sqrt_expr == 0:
+			return [self.y]
+		else:
+			sqrt_val = sqrt(sqrt_expr)
+			return [self.y - sqrt_val, self.y + sqrt_val]
+
+	def x_from_y(self, y: float) -> float:
+		'''                (y - y0)^2
+x = x0 +-sqrt( r1^2 * (1 - ----------)
+                              r2^2
+		'''
+		sqrt_expr = self.radius_x**2 * (1 - ((y - self.y)**2) / self.radius_y**2)
+
+		if sqrt_expr < 0:
+			return []
+		elif sqrt_expr == 0:
+			return [self.x]
+		else:
+			sqrt_val = sqrt(sqrt_expr)
+			return [self.x - sqrt_val, self.x + sqrt_val]
+
 	@property
 	def area(self):
 		return pi * self.radius_x * self.radius_y
 	@property
 	def perimeter(self) -> float:
-		# Ramanujan
-		a, b = self.radius_x, self.radius_y
-		return pi * (3 * (a + b) - sqrt((3 * a + b) * (a + 3 * b)))
+		return 2 * pi * sqrt( (self.radius_x**2 * self.radius_y**2)/2 )
 
 	@property
 	def as_geometry(self):
@@ -1063,12 +827,38 @@ class Ellipse:
 	@property
 	def projection(self) -> 'Circle':
 		if self.dimension > 2:
-			return Ellipse2D(self.center.project_to(2), self.radius_x, self.radius_y, name=self.name, color=self.color, alpha=self.alpha)
+			return Ellipse2D(self.center.project_to(2), self.vec1, self.vec2, name=self.name, color=self.color,
+							 alpha=self.alpha)
 		else:
 			return self
 	
 	def __contains__(self, object):
 		return self.intersects(object)
+
+	def __add__(self, point: Union[Point, list, tuple]) -> 'Ellipse':
+		if isinstance(point, (list,tuple,np.ndarray)):
+			point = Point(*point)
+		return self.__class__(self.center + point, self.vec1, self.vec2, name=self.name, color=self.color, alpha=self.alpha)
+	def __sub__(self, point: Union[Point, list, tuple]) -> 'Ellipse':
+		if isinstance(point, (list,tuple,np.ndarray)):
+			point = Point(*point)
+		return self.__class__(self.center - point, self.vec1, self.vec2, name=self.name, color=self.color, alpha=self.alpha)
+	def __mul__(self, point: Union[Point, list, tuple]) -> 'Ellipse':
+		if isinstance(point, (list,tuple,np.ndarray)):
+			point = Point(*point)
+		return self.__class__(self.center * point, self.vec1, self.vec2, name=self.name, color=self.color, alpha=self.alpha)
+	def __truediv__(self, point: Union[Point, list, tuple]) -> 'Ellipse':
+		if isinstance(point, (list,tuple,np.ndarray)):
+			point = Point(*point)
+		return self.__class__(self.center / point, self.vec1, self.vec2, name=self.name, color=self.color, alpha=self.alpha)
+	def __floordiv__(self, point: Union[Point, list, tuple]) -> 'Ellipse':
+		if isinstance(point, (list,tuple,np.ndarray)):
+			point = Point(*point)
+		return self.__class__(self.center // point, self.vec1, self.vec2, name=self.name, color=self.color, alpha=self.alpha)
+	def __pow__(self, point: Union[Point, list, tuple]) -> 'Ellipse':
+		if isinstance(point, (list,tuple,np.ndarray)):
+			point = Point(*point)
+		return self.__class__(self.center ** point, self.vec1, self.vec2, name=self.name, color=self.color, alpha=self.alpha)
 
 	# 'num' is a number from 0 to 1
 	# Returns point at a Circle that makes with second point sector of a circle like angle (0 -> 0 deg; 1 -> 360 deg)
@@ -1081,3 +871,86 @@ class Ellipse:
 		return f"{self.name}([{self.center}], radius_x={self.radius_x}, radius_y={self.radius_y})"
 	def __repr__(self):
 		return f"{self.__class__.__name__}({self.center}, {self.radius_x}, {self.radius_y}, name={self.name})"
+
+
+class Circle(Ellipse):
+	def __init__(self, center: 'Point', radius: Union[int, float], vec1: Vector, vec2: Vector,
+				 name: str = 'Circle', color: str = 'purple', alpha: Union[int, float] = 1):
+
+		if not isinstance(radius, (float, int)):
+			raise ConstructError(
+				f'Incorrect radius for circle: it must be positive number, not {radius}, {type(radius)}')
+		if radius <= 0:
+			raise ConstructError(
+				f'Incorrect radius for circle: it must be positive number, not {radius}, {type(radius)}')
+		if isinstance(vec1, (tuple, list, np.ndarray)):
+			vec1 = Vector[vec1]
+		if isinstance(vec2, (tuple, list, np.ndarray)):
+			vec2 = Vector[vec2]
+
+		self.radius = radius
+		self.diameter = radius * 2
+		super().__init__(center, vec1*radius, vec2*radius, name=name, color=color, alpha=alpha)
+
+	def at_pos(self, position: List[[int, int]]) -> 'Ellipse':
+		if self.center != position:
+			return self.__class__(position, self.radius, *self.space.vectors, name=self.name, color=self.color,
+								  alpha=self.alpha)
+		return self.copy()
+
+	def scale(self, factor: float) -> 'Circle':
+		return self.__class__(self.pos, self.radius * factor, *self.space.vectors, name=self.name, color=self.color,
+							  alpha=self.alpha)
+
+	def y_from_x(self, x: float) -> float:
+		d = self.radius ** 2 - (x - self.x) ** 2
+		if d == 0:
+			return [self.y]
+		elif d > 0:
+			sqrtd = sqrt(d)
+			return [
+				-sqrtd + self.y,
+				+sqrtd + self.y,
+			]
+	def x_from_y(self, y: float) -> float:
+		d = self.radius ** 2 - (y - self.y) ** 2
+		if d == 0:
+			return [self.x]
+		elif d > 0:
+			sqrtd = sqrt(d)
+			return [
+				-sqrtd + self.x,
+				+sqrtd + self.x,
+			]
+
+	@property
+	def area(self) -> float:
+		return pi * self.radius ** 2
+	@property
+	def perimeter(self) -> float:
+		return 2 * pi * self.radius
+
+	@property
+	def projection(self) -> 'Circle':
+		if self.dimension > 2:
+			return Circle2D(self.center.project_to(2), self.radius, name=self.name, color=self.color, alpha=self.alpha)
+		else:
+			return self
+
+	@property
+	def as_geometry(self) -> str:
+		return f'(x - {self.x})**2 + (y - {self.y})**2 = {self.radius}**2'
+
+	def __str__(self):
+		return f"{self.name}({self.center}, radius={self.radius})"
+	def __repr__(self):
+		return f"{self.__class__.__name__}({self.center}, {self.radius}, name='{self.name}')"
+
+
+def Circle2D(center: Point, radius: Union[int, float], name: str = 'Circle', color: str = 'purple',
+			 alpha: Union[int, float] = 1):
+	return Circle(center, radius, [1, 0], [0, 1], name=name, color=color, alpha=alpha)
+
+def Ellipse2D(center: Point, rx: Union[int, float], ry: Union[int, float], name: str = 'Circle', color: str = 'red',
+			 alpha: Union[int, float] = 1):
+	return Ellipse(center, Vector[1, 0] * rx, Vector[0, 1] * ry, name=name, color=color, alpha=alpha)
